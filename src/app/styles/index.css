@@ -1,1 +1,27 @@
 @import 'tailwindcss';
+
+@theme {
+  --color-ink: #14070a;
+  --color-wine: #2a0d14;
+  --color-oxblood: #5b0e20;
+  --color-crimson: #c4163a;
+  --color-rose: #f29cae;
+  --color-bone: #f4e9e1;
+  --color-brass: #c58a4b;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-label: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+
+  --radius-blade: 2px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-bone);
+  font-family: var(--font-body);
+}

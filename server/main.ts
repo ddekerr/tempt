@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
+import type { RawData } from 'ws';
 import { ClientMessageSchema, type ServerMessage } from '@core/protocol';
 import { getLanIp } from './net/lan-ip';
 
@@ -26,7 +27,7 @@ async function main() {
   app.get('/api/health', async () => ({ ok: true }));
 
   app.get('/ws', { websocket: true }, (socket) => {
-    socket.on('message', (raw) => {
+    socket.on('message', (raw: RawData) => {
       const message = ClientMessageSchema.safeParse(parseJson(raw.toString()));
       if (!message.success) {
         const reply: ServerMessage = { type: 'error', message: 'Некоректне повідомлення' };

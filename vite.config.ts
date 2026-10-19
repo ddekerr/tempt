@@ -21,8 +21,9 @@ export default defineConfig({
     host: true,
     port: 5173,
     proxy: {
-      '/api': `http://localhost:${SERVER_PORT}`,
-      '/ws': { target: `ws://localhost:${SERVER_PORT}`, ws: true },
+      // xfwd додає X-Forwarded-For, за яким сервер бачить, що запит прийшов не з комп'ютера (див. server/net/local-only.ts)
+      '/api': { target: `http://localhost:${SERVER_PORT}`, xfwd: true },
+      '/ws': { target: `ws://localhost:${SERVER_PORT}`, ws: true, xfwd: true },
     },
   },
 });

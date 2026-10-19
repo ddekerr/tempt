@@ -28,7 +28,11 @@ export default [
 
     settings: {
       'import/resolver': {
-        typescript: { alwaysTryTypes: true, project: ['./tsconfig.json', './tsconfig.server.json'] },
+        typescript: {
+          alwaysTryTypes: true,
+          project: ['./tsconfig.json', './tsconfig.server.json'],
+          noWarnOnMultipleProjects: true,
+        },
       },
       'boundaries/include': ['src/**/*', 'server/**/*', 'core/**/*'],
       'boundaries/elements': [

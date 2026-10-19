@@ -1,0 +1,62 @@
+{
+  "name": "tempt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch server/main.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "tsx server/main.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "better-sqlite3": "^12.0.0",
+    "drizzle-orm": "^0.44.0",
+    "fastify": "^5.0.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router": "^7.6.0",
+    "zod": "^4.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.0",
+    "drizzle-kit": "^0.31.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-boundaries": "^5.0.1",
+    "eslint-plugin-check-file": "^3.3.2",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0"
+  }
+}

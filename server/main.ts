@@ -4,12 +4,14 @@ import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
-import type { RawData } from 'ws';
-import { ClientMessageSchema, type ServerMessage } from '@core/protocol';
+import { hostRoutes } from './api/host.routes';
 import { runMigrations } from './db/migrate';
+import { GAMES } from './games/registry';
 import { truthOrDareRoutes } from './games/truth-or-dare/routes';
 import { getLanIp } from './net/lan-ip';
 import { isLocalRequest, localOnly } from './net/local-only';
+import { registerGateway } from './net/ws-gateway';
+import { RoomManager } from './rooms/room-manager';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist/web');
@@ -17,42 +19,26 @@ const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../d
 /** Сторінки, які відкриваються лише з самого комп'ютера. */
 const LOCAL_ONLY_PAGES = ['/editor', '/host'];
 
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
-}
-
 async function main() {
   runMigrations();
 
   const app = Fastify({ logger: true });
+  const rooms = new RoomManager(GAMES);
 
   await app.register(websocket);
 
-  // Увесь /api доступний лише з комп'ютера: це редактори ігор. Телефони працюють через /ws.
+  // Увесь /api доступний лише з комп'ютера: це редактори ігор і сторінка /host. Телефони працюють через /ws.
   await app.register(
     async (api) => {
       api.addHook('onRequest', localOnly);
       api.get('/health', async () => ({ ok: true }));
+      await api.register(hostRoutes(rooms), { prefix: '/host' });
       await api.register(truthOrDareRoutes, { prefix: '/games/truth-or-dare' });
     },
     { prefix: '/api' },
   );
 
-  app.get('/ws', { websocket: true }, (socket) => {
-    socket.on('message', (raw: RawData) => {
-      const message = ClientMessageSchema.safeParse(parseJson(raw.toString()));
-      if (!message.success) {
-        const reply: ServerMessage = { type: 'error', message: 'Некоректне повідомлення' };
-        socket.send(JSON.stringify(reply));
-        return;
-      }
-      app.log.info({ type: message.data.type }, 'ws message');
-    });
-  });
+  registerGateway(app, rooms);
 
   // У готовому вигляді цей самий процес роздає зібраний фронтенд.
   if (existsSync(webRoot)) {

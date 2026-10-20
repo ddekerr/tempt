@@ -1,7 +1,8 @@
 import { z } from 'zod';
+import type { RoomView } from './room';
 
 /**
- * Загальний протокол клієнт ↔ сервер. Роль визначається адресою підключення (/play/male, /play/female),
+ * Загальний протокол клієнт ↔ сервер. Роль визначається адресою підключення (/ws?role=male|female),
  * тому в повідомленнях її немає. `payload` дій гри для каркаса непрозорий: його перевіряє схема самої гри.
  */
 export const ClientMessageSchema = z.discriminatedUnion('type', [
@@ -15,4 +16,12 @@ export const ClientMessageSchema = z.discriminatedUnion('type', [
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
-export type ServerMessage = { type: 'error'; message: string };
+export type ServerMessage =
+  | { type: 'error'; message: string }
+  | { type: 'joined'; token: string }
+  | { type: 'roomUpdate'; room: RoomView };
+
+/** Коди закриття WebSocket, після яких клієнт не перепідключається сам. */
+export const CLOSE_REPLACED = 4000;
+export const CLOSE_RESET = 4001;
+export const CLOSE_BAD_ROLE = 4400;

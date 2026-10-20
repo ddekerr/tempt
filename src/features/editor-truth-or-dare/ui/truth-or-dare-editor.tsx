@@ -3,6 +3,7 @@ import { AUDIENCES, PROMPT_KINDS, type Audience } from '@core/games/truth-or-dar
 import { AUDIENCE_LABEL } from '../model/labels';
 import { usePromptsStore } from '../model/prompts-store';
 import { PromptColumn } from './prompt-column';
+import { PromptComposer } from './prompt-composer';
 
 export function TruthOrDareEditor() {
   const status = usePromptsStore((state) => state.status);
@@ -34,6 +35,8 @@ export function TruthOrDareEditor() {
 
   return (
     <div className="grid gap-8">
+      <PromptComposer />
+
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Фільтр за адресатом">
         <span className="mr-2 font-label text-sm tracking-[0.14em] text-bone/60 uppercase">Показати</span>
         {[null, ...AUDIENCES].map((value) => (

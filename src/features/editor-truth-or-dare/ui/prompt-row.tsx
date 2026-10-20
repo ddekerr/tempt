@@ -3,7 +3,7 @@ import type { Prompt } from '@core/games/truth-or-dare/content.schema';
 import { errorMessage } from '@/shared/api';
 import { AUDIENCE_LABEL, AUDIENCE_TEXT_CLASS } from '../model/labels';
 import { usePromptsStore } from '../model/prompts-store';
-import { PromptForm } from './prompt-form';
+import { PromptEditForm } from './prompt-edit-form';
 
 const ACTION_BUTTON =
   'font-label text-xs font-semibold tracking-[0.16em] uppercase text-bone/70 hover:text-bone focus-visible:outline-2 focus-visible:outline-rose';
@@ -28,9 +28,8 @@ export function PromptRow({ prompt }: { prompt: Prompt }) {
   if (editing) {
     return (
       <li className="border border-crimson bg-wine p-4">
-        <PromptForm
+        <PromptEditForm
           initial={{ text: prompt.text, audience: prompt.audience }}
-          submitLabel="Зберегти"
           onSubmit={async (values) => {
             await update(prompt.id, values);
             setEditing(false);

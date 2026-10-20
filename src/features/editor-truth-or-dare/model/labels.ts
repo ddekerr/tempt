@@ -5,6 +5,11 @@ export const KIND_LABEL: Record<PromptKind, string> = {
   dare: 'Дія',
 };
 
+export const ADD_LABEL: Record<PromptKind, string> = {
+  truth: 'Додати запитання',
+  dare: 'Додати дію',
+};
+
 export const AUDIENCE_LABEL: Record<Audience, string> = {
   male: 'Для нього',
   female: 'Для неї',

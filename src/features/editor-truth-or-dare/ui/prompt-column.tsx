@@ -1,7 +1,6 @@
 import type { Audience, PromptKind } from '@core/games/truth-or-dare/content.schema';
 import { KIND_LABEL } from '../model/labels';
 import { usePromptsStore } from '../model/prompts-store';
-import { PromptForm } from './prompt-form';
 import { PromptRow } from './prompt-row';
 
 interface PromptColumnProps {
@@ -12,7 +11,6 @@ interface PromptColumnProps {
 
 export function PromptColumn({ kind, audienceFilter }: PromptColumnProps) {
   const prompts = usePromptsStore((state) => state.prompts);
-  const create = usePromptsStore((state) => state.create);
 
   const ofKind = prompts.filter((prompt) => prompt.kind === kind);
   const visible = audienceFilter ? ofKind.filter((prompt) => prompt.audience === audienceFilter) : ofKind;
@@ -28,17 +26,9 @@ export function PromptColumn({ kind, audienceFilter }: PromptColumnProps) {
         </span>
       </header>
 
-      <div className="bg-wine p-4">
-        <PromptForm
-          submitLabel="Додати"
-          resetOnSuccess
-          onSubmit={(values) => create({ kind, audience: values.audience, text: values.text, active: true })}
-        />
-      </div>
-
       {visible.length === 0 ? (
         <p className="text-bone/60">
-          {ofKind.length === 0 ? 'Поки порожньо. Додай перший запис вище.' : 'Для цього фільтра нічого немає.'}
+          {ofKind.length === 0 ? 'Поки порожньо. Додай перший запис угорі.' : 'Для цього фільтра нічого немає.'}
         </p>
       ) : (
         <ul className="grid gap-3">

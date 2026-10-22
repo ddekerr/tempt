@@ -1,18 +1,28 @@
 import { useRoomStore } from '@/entities/room';
+import { RolePlayGame } from '@/features/game-role-play';
+import { TruthOrDareGame } from '@/features/game-truth-or-dare';
 
-/** Тут за id гри підставлятиметься екран самої гри. Поки ігор немає, показуємо заглушку. */
+/** За id гри підставляє екран потрібної гри. Нова гра додає сюди один рядок. */
+function Game({ gameId }: { gameId: string | null }) {
+  switch (gameId) {
+    case 'truth-or-dare':
+      return <TruthOrDareGame />;
+    case 'role-play':
+      return <RolePlayGame />;
+    default:
+      return <p className="text-bone/60">Невідома гра.</p>;
+  }
+}
+
 export function GameBoard() {
   const view = useRoomStore((state) => state.view);
   const leaveGame = useRoomStore((state) => state.leaveGame);
 
   if (!view) return null;
-  const game = view.games.find((item) => item.id === view.gameId);
 
   return (
-    <div className="grid w-full max-w-md gap-6">
-      <p className="font-label text-sm tracking-[0.22em] text-brass uppercase">{game?.title}</p>
-      <h1 className="font-display text-5xl font-extrabold italic">Починаємо</h1>
-      <p className="text-bone/70">Обоє натиснули «Старт». Сама гра з'явиться тут.</p>
+    <div className="grid w-full max-w-md gap-8">
+      <Game gameId={view.gameId} />
       <button
         type="button"
         onClick={leaveGame}

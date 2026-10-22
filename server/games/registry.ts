@@ -1,5 +1,6 @@
-import type { GameMeta } from '@core/game';
-import { TRUTH_OR_DARE_META } from '@core/games/truth-or-dare/meta';
+import { rolePlayRuntime } from './role-play';
+import type { GameRuntime } from './runtime';
+import { truthOrDareRuntime } from './truth-or-dare';
 
 /** Усі доступні ігри. Нова гра додається одним рядком; меню на телефонах підхопить її само. */
-export const GAMES: GameMeta[] = [TRUTH_OR_DARE_META];
+export const RUNTIMES: GameRuntime[] = [truthOrDareRuntime, rolePlayRuntime];

@@ -6,7 +6,8 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import { hostRoutes } from './api/host.routes';
 import { runMigrations } from './db/migrate';
-import { GAMES } from './games/registry';
+import { rolePlayRoutes } from './games/role-play/routes';
+import { RUNTIMES } from './games/registry';
 import { truthOrDareRoutes } from './games/truth-or-dare/routes';
 import { getLanIp } from './net/lan-ip';
 import { isLocalRequest, localOnly } from './net/local-only';
@@ -23,7 +24,7 @@ async function main() {
   runMigrations();
 
   const app = Fastify({ logger: true });
-  const rooms = new RoomManager(GAMES);
+  const rooms = new RoomManager(RUNTIMES);
 
   await app.register(websocket);
 
@@ -34,6 +35,7 @@ async function main() {
       api.get('/health', async () => ({ ok: true }));
       await api.register(hostRoutes(rooms), { prefix: '/host' });
       await api.register(truthOrDareRoutes, { prefix: '/games/truth-or-dare' });
+      await api.register(rolePlayRoutes, { prefix: '/games/role-play' });
     },
     { prefix: '/api' },
   );

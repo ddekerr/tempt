@@ -11,6 +11,8 @@ interface RoomStoreState {
   /** Сервер підтвердив вхід у слот. */
   joined: boolean;
   view: RoomView | null;
+  /** Вигляд поточної гри саме для цього гравця. Структуру `view` знає лише сама гра. */
+  game: { gameId: string; view: unknown } | null;
   error: string | null;
 
   open: (role: Role) => void;
@@ -19,9 +21,10 @@ interface RoomStoreState {
   enterGame: (gameId: string) => void;
   leaveGame: () => void;
   setReady: (ready: boolean) => void;
+  sendGameAction: (payload: unknown) => void;
 }
 
-const initial = { role: null, connection: 'closed', joined: false, view: null, error: null } as const;
+const initial = { role: null, connection: 'closed', joined: false, view: null, game: null, error: null } as const;
 
 // Сокет і поточний вхід живуть поза станом: це не те, що малюється.
 let socket: ReconnectingSocket | null = null;
@@ -44,7 +47,11 @@ export const useRoomStore = create<RoomStoreState>()((set, get) => {
         set({ joined: true, error: null });
         return;
       case 'roomUpdate':
-        set({ view: message.room });
+        // коли гра зупинилась, її вигляд більше не актуальний
+        set(message.room.playing ? { view: message.room } : { view: message.room, game: null });
+        return;
+      case 'state':
+        set({ game: { gameId: message.gameId, view: message.view } });
         return;
       case 'error':
         // якщо вхід не вдався (роль зайнята), показуємо форму входу знов
@@ -71,10 +78,10 @@ export const useRoomStore = create<RoomStoreState>()((set, get) => {
         },
         onFatalClose: (code) => {
           session = null;
-          if (code === CLOSE_RESET)
-            set({ joined: false, view: null, error: "Тебе скинули з комп'ютера. Увійди знову." });
-          else if (code === CLOSE_REPLACED) set({ joined: false, view: null, error: 'Відкрито в іншому вікні.' });
-          else set({ joined: false, view: null, error: 'Не вдалося підключитися.' });
+          const reset = { joined: false, view: null, game: null };
+          if (code === CLOSE_RESET) set({ ...reset, error: "Тебе скинули з комп'ютера. Увійди знову." });
+          else if (code === CLOSE_REPLACED) set({ ...reset, error: 'Відкрито в іншому вікні.' });
+          else set({ ...reset, error: 'Не вдалося підключитися.' });
         },
       });
     },
@@ -105,6 +112,10 @@ export const useRoomStore = create<RoomStoreState>()((set, get) => {
     setReady: (ready) => {
       set({ error: null });
       send({ type: 'setReady', ready });
+    },
+    sendGameAction: (payload) => {
+      set({ error: null });
+      send({ type: 'gameAction', payload });
     },
   };
 });

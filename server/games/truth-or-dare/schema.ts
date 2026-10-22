@@ -13,3 +13,14 @@ export const todPrompts = sqliteTable('tod_prompts', {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+/** Записи, які вже виконали. Завдяки цьому вони не повторюються, доки не скінчиться весь список. */
+export const todHistory = sqliteTable('tod_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  promptId: integer('prompt_id')
+    .notNull()
+    .references(() => todPrompts.id, { onDelete: 'cascade' }),
+  doneAt: integer('done_at', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});

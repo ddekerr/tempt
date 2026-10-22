@@ -19,7 +19,9 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type ServerMessage =
   | { type: 'error'; message: string }
   | { type: 'joined'; token: string }
-  | { type: 'roomUpdate'; room: RoomView };
+  | { type: 'roomUpdate'; room: RoomView }
+  /** Вигляд гри саме для цього гравця. Структуру `view` знає лише сама гра. */
+  | { type: 'state'; gameId: string; view: unknown };
 
 /** Коди закриття WebSocket, після яких клієнт не перепідключається сам. */
 export const CLOSE_REPLACED = 4000;

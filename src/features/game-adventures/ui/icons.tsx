@@ -38,11 +38,11 @@ export const TreasuryIcon = () => (
   </Icon>
 );
 
-export const HeartIcon = ({ filled }: { filled: boolean }) => (
+export const HeartIcon = ({ filled, size = 22 }: { filled: boolean; size?: number }) => (
   <svg
     viewBox="0 0 24 24"
-    width="22"
-    height="22"
+    width={size}
+    height={size}
     aria-hidden="true"
     className={filled ? 'text-crimson' : 'text-oxblood'}
   >

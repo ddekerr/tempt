@@ -1,4 +1,4 @@
-import { HERO_CLOTHING_MAX, HERO_HP_MAX, type HeroView } from '@core/games/adventures/types';
+import { HERO_CLOTHING_MAX, HERO_HP_MAX, XP_PER_LEVEL, type HeroView } from '@core/games/adventures/types';
 import type { Role } from '@core/roles';
 import { ROLE_BORDER_CLASS, ROLE_TEXT_CLASS } from '@/shared/config/roles';
 import { HeartIcon } from './icons';
@@ -48,6 +48,11 @@ export function HeroTab({ hero, role }: HeroTabProps) {
             {Array.from({ length: HERO_HP_MAX }, (_, index) => (
               <HeartIcon key={index} filled={index < hero.hp} />
             ))}
+          </Stat>
+          <Stat label="Досвід">
+            <span className="text-sm tabular-nums">
+              {hero.xp % XP_PER_LEVEL} / {XP_PER_LEVEL}
+            </span>
           </Stat>
           <Stat label="Одяг">
             <span className="sr-only">

@@ -1,36 +1,38 @@
 import type { GameModule } from '../../game';
+import { applyAction, sync } from './engine';
 import { ADVENTURES_META } from './meta';
-import { summarizeStories } from './story-status';
 import { AdvActionSchema, type AdvAction, type AdvCtx, type AdvState, type AdvView } from './types';
-
-/** Свіжий знімок усього, що бачать гравці, із бази. */
-function load(names: AdvState['names'], ctx: AdvCtx): AdvState {
-  return {
-    names,
-    stories: summarizeStories(ctx.stories(), ctx.progress()),
-    heroes: { male: ctx.hero('male'), female: ctx.hero('female') },
-    treasury: ctx.treasury(),
-  };
-}
+import { sceneFor } from './view';
 
 export const adventuresModule: GameModule<AdvState, AdvAction, AdvView, AdvCtx> = {
   ...ADVENTURES_META,
   actionSchema: AdvActionSchema,
 
-  init: (players, ctx) => load({ male: players.male.name, female: players.female.name }, ctx),
+  init: (players, ctx) =>
+    sync(
+      {
+        names: { male: players.male.name, female: players.female.name },
+        stories: [],
+        heroes: { male: ctx.hero('male'), female: ctx.hero('female') },
+        treasury: [],
+        run: null,
+        script: null,
+      },
+      ctx,
+    ),
 
-  reduce: (state, action, _by, ctx) => {
-    switch (action.type) {
-      case 'refresh':
-        return load(state.names, ctx);
-    }
+  reduce: (state, action, by, ctx) => applyAction(state, action, by, ctx),
+
+  viewFor: (state, role) => {
+    const partner = role === 'male' ? 'female' : 'male';
+    return {
+      stories: state.stories,
+      hero: { ...state.heroes[role], name: state.names[role] },
+      partner: { ...state.heroes[partner], name: state.names[partner] },
+      treasury: state.treasury,
+      scene: state.run && state.script ? sceneFor(state, state.script) : null,
+    };
   },
-
-  viewFor: (state, role) => ({
-    stories: state.stories,
-    hero: { ...state.heroes[role], name: state.names[role] },
-    treasury: state.treasury,
-  }),
 
   isOver: () => false,
 };

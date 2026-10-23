@@ -1,7 +1,12 @@
 import type { StorySummary } from '@core/games/adventures/types';
 import { StoryCard } from './story-card';
 
-export function StoriesTab({ stories }: { stories: StorySummary[] }) {
+interface StoriesTabProps {
+  stories: StorySummary[];
+  onStart: (storyId: string, fromStart: boolean) => void;
+}
+
+export function StoriesTab({ stories, onStart }: StoriesTabProps) {
   return (
     <section className="grid gap-4">
       <h1 className="font-display text-4xl font-extrabold italic">Історії</h1>
@@ -10,7 +15,7 @@ export function StoriesTab({ stories }: { stories: StorySummary[] }) {
       ) : (
         <ul className="grid gap-4">
           {stories.map((story) => (
-            <StoryCard key={story.id} story={story} />
+            <StoryCard key={story.id} story={story} onStart={onStart} />
           ))}
         </ul>
       )}

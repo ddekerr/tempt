@@ -17,7 +17,14 @@ const STATUS_CLASS: Record<StoryStatus, string> = {
   done: 'border-rose text-rose',
 };
 
-export function StoryCard({ story }: { story: StorySummary }) {
+interface StoryCardProps {
+  story: StorySummary;
+  onStart: (storyId: string, fromStart: boolean) => void;
+}
+
+const BUTTON = 'rounded-blade px-5 py-2.5 font-label text-base font-bold tracking-[0.16em] uppercase transition';
+
+export function StoryCard({ story, onStart }: StoryCardProps) {
   const locked = story.status === 'locked';
   const progress = story.status === 'done' ? 100 : Math.round((story.chapter / story.chapters) * 100);
 
@@ -55,6 +62,31 @@ export function StoryCard({ story }: { story: StorySummary }) {
       )}
 
       {locked && <p className="text-sm text-bone/60">Спершу пройдіть попередню.</p>}
+
+      {!locked && (
+        <div className="flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            onClick={() => onStart(story.id, false)}
+            className={`${BUTTON} bg-crimson hover:bg-crimson/80`}
+          >
+            {story.status === 'new' ? 'Почати' : story.status === 'started' ? 'Продовжити історію' : 'Пройти ще раз'}
+          </button>
+          {story.status === 'started' && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Почати історію з першої глави? Герої отримають повні життя й одяг.')) {
+                  onStart(story.id, true);
+                }
+              }}
+              className="font-label text-sm font-semibold tracking-[0.16em] text-bone/60 uppercase hover:text-bone"
+            >
+              Почати заново
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

@@ -1,15 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { adventuresModule } from './module';
+import { makeCtx } from './test-ctx';
 import { summarizeStories } from './story-status';
-import {
-  AdvActionSchema,
-  newHero,
-  type AdvCtx,
-  type Hero,
-  type StoryDef,
-  type StoryProgress,
-  type TreasureItem,
-} from './types';
+import { AdvActionSchema, newHero, type StoryDef, type TreasureItem } from './types';
 
 const DEFS: StoryDef[] = [
   { id: 'a', title: 'Перша', description: 'Опис', chapters: 5 },
@@ -18,30 +11,6 @@ const DEFS: StoryDef[] = [
 ];
 
 const players = { male: { name: 'Дмитро' }, female: { name: 'Катя' } };
-
-function makeCtx(
-  overrides: Partial<{
-    progress: StoryProgress[];
-    heroes: Record<'male' | 'female', Hero>;
-    treasury: TreasureItem[];
-  }> = {},
-) {
-  const data = {
-    progress: [] as StoryProgress[],
-    heroes: { male: { ...newHero(), title: 'Розвідник' }, female: { ...newHero(), title: 'Чарівниця' } },
-    treasury: [] as TreasureItem[],
-    ...overrides,
-  };
-  const ctx: AdvCtx & { data: typeof data } = {
-    data,
-    random: () => 0,
-    stories: () => DEFS,
-    progress: () => data.progress,
-    hero: (role) => data.heroes[role],
-    treasury: () => data.treasury,
-  };
-  return ctx;
-}
 
 describe('summarizeStories', () => {
   it('відкриває лише першу історію, решта закриті', () => {
@@ -70,25 +39,32 @@ describe('summarizeStories', () => {
 
 describe('adventuresModule', () => {
   it('init знімає стан із бази', () => {
-    const state = adventuresModule.init(players, makeCtx());
-    expect(state.stories).toHaveLength(3);
+    const ctx = makeCtx({ data: { heroes: { male: { ...newHero(), title: 'Розвідник' }, female: newHero() } } });
+    const state = adventuresModule.init(players, ctx);
+    expect(state.stories.length).toBeGreaterThan(0);
     expect(state.heroes.male.title).toBe('Розвідник');
+    expect(state.run).toBeNull();
   });
 
-  it('кожен бачить лише свого героя з власним іменем', () => {
-    const state = adventuresModule.init(players, makeCtx());
+  it('кожен бачить себе як героя, а партнера як партнера', () => {
+    const ctx = makeCtx({
+      data: {
+        heroes: { male: { ...newHero(), title: 'Розвідник' }, female: { ...newHero(), title: 'Чарівниця' } },
+      },
+    });
+    const state = adventuresModule.init(players, ctx);
     const male = adventuresModule.viewFor(state, 'male');
     const female = adventuresModule.viewFor(state, 'female');
 
     expect(male.hero).toMatchObject({ name: 'Дмитро', title: 'Розвідник' });
+    expect(male.partner).toMatchObject({ name: 'Катя', title: 'Чарівниця' });
     expect(female.hero).toMatchObject({ name: 'Катя', title: 'Чарівниця' });
-    expect(JSON.stringify(male)).not.toContain('Чарівниця');
-    expect(JSON.stringify(female)).not.toContain('Розвідник');
+    expect(female.partner).toMatchObject({ name: 'Дмитро', title: 'Розвідник' });
   });
 
   it('скарбниця й історії спільні для обох', () => {
-    const treasure: TreasureItem = { id: 1, kind: 'item', name: 'Кільце', icon: '💍', description: '' };
-    const state = adventuresModule.init(players, makeCtx({ treasury: [treasure] }));
+    const treasure: TreasureItem = { id: 1, kind: 'item', name: 'Кільце', icon: '💍', description: '', effect: null };
+    const state = adventuresModule.init(players, makeCtx({ data: { treasury: [treasure] } }));
     expect(adventuresModule.viewFor(state, 'male').treasury).toEqual([treasure]);
     expect(adventuresModule.viewFor(state, 'female').treasury).toEqual([treasure]);
   });
@@ -98,7 +74,7 @@ describe('adventuresModule', () => {
     const state = adventuresModule.init(players, ctx);
 
     ctx.data.heroes.male = { ...ctx.data.heroes.male, level: 2, hp: 1 };
-    ctx.data.progress = [{ storyId: 'a', chapter: 3, done: false }];
+    ctx.data.progress = [{ storyId: ctx.stories()[0].id, chapter: 3, done: false }];
 
     const next = adventuresModule.reduce(state, { type: 'refresh' }, 'male', ctx);
     if ('error' in next) throw new Error(next.error);
@@ -108,11 +84,13 @@ describe('adventuresModule', () => {
   });
 
   it('новий герой починає з повними життями й одягом', () => {
-    expect(newHero()).toEqual({ title: 'Шукач пригод', level: 1, hp: 3, clothing: 5 });
+    expect(newHero()).toEqual({ title: 'Шукач пригод', level: 1, xp: 0, hp: 3, clothing: 5 });
   });
 
-  it('схема дії приймає refresh і відкидає сміття', () => {
+  it('схема дії приймає відомі дії й відкидає сміття', () => {
     expect(AdvActionSchema.safeParse({ type: 'refresh' }).success).toBe(true);
+    expect(AdvActionSchema.safeParse({ type: 'start', storyId: 'masquerade' }).success).toBe(true);
+    expect(AdvActionSchema.safeParse({ type: 'wish', text: '' }).success).toBe(false);
     expect(AdvActionSchema.safeParse({ type: 'win' }).success).toBe(false);
   });
 });

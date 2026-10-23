@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { adventuresModule } from './module';
-import { makeCtx } from './test-ctx';
+import { makeCtx } from './memory-ctx';
 import { summarizeStories } from './story-status';
 import { AdvActionSchema, newHero, type StoryDef, type TreasureItem } from './types';
 

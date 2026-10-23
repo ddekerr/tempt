@@ -1,1 +1,1 @@
-export { AdventuresGame } from './ui/adventures-game';
+export { AdventuresGame, AdventuresScreen } from './ui/adventures-game';

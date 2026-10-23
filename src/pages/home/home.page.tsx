@@ -14,6 +14,9 @@ export function HomePage() {
         <Link to="/editor" className={`${LINK_CLASS} border border-bone/60 hover:bg-bone/10`}>
           Редактор
         </Link>
+        <Link to="/preview" className={`${LINK_CLASS} border border-bone/60 hover:bg-bone/10`}>
+          Превʼю
+        </Link>
       </div>
     </main>
   );

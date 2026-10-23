@@ -19,7 +19,7 @@ export interface TestData {
   treasury: TreasureItem[];
 }
 
-/** Контекст у пам'яті: те саме, що сервер робить із базою. */
+/** Контекст у пам’яті: те саме, що сервер робить із базою. Для тестів і для превʼю на комп’ютері без сервера. */
 export function makeCtx(options: { random?: () => number; scripts?: StoryScript[]; data?: Partial<TestData> } = {}) {
   const data: TestData = {
     progress: [],

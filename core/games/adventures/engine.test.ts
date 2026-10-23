@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyAction, isFail } from './engine';
 import { adventuresModule } from './module';
 import type { Chapter, StoryScript } from './script.types';
-import { makeCtx, seeded } from './test-ctx';
+import { makeCtx, seeded } from './memory-ctx';
 import { SCRIPTS } from './stories';
 import type { AdvAction, AdvCtx, AdvState } from './types';
 import { sceneFor } from './view';

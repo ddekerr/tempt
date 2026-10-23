@@ -1,4 +1,5 @@
 import { useRoomStore } from '@/entities/room';
+import { AdventuresGame } from '@/features/game-adventures';
 import { RolePlayGame } from '@/features/game-role-play';
 import { TruthOrDareGame } from '@/features/game-truth-or-dare';
 
@@ -9,6 +10,8 @@ function Game({ gameId }: { gameId: string | null }) {
       return <TruthOrDareGame />;
     case 'role-play':
       return <RolePlayGame />;
+    case 'adventures':
+      return <AdventuresGame />;
     default:
       return <p className="text-bone/60">Невідома гра.</p>;
   }

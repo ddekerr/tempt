@@ -3,6 +3,7 @@ import type { TaskWho } from '@core/games/adventures/script.types';
 import type { Role } from '@core/roles';
 import { ROLE_TEXT_CLASS } from '@/shared/config/roles';
 import { HeroHud } from './hero-hud';
+import { RollingDie } from './die';
 import { GhostButton, Label, PrimaryButton, Waiting } from './primitives';
 import { Timer } from './timer';
 import { WishForm } from './wish-form';
@@ -25,20 +26,6 @@ const Title = ({ children }: { children: React.ReactNode }) => (
 const Prose = ({ children }: { children: React.ReactNode }) => (
   <p className="text-lg leading-relaxed whitespace-pre-line">{children}</p>
 );
-
-function Die({ sides, value, tone }: { sides: number; value: number | null; tone?: 'good' | 'bad' }) {
-  const color =
-    tone === 'good' ? 'border-brass text-brass' : tone === 'bad' ? 'border-oxblood text-rose' : 'border-bone/40';
-  return (
-    <div
-      role="img"
-      aria-label={value === null ? `Кубик d${sides}` : `Випало ${value}`}
-      className={`mx-auto grid size-24 place-items-center border-2 bg-ink font-display text-5xl font-extrabold italic ${color}`}
-    >
-      {value ?? `d${sides}`}
-    </div>
-  );
-}
 
 const whoLabel = (who: TaskWho, name: (role: Role) => string) => (who === 'both' ? 'Для вас обох' : `Для ${name(who)}`);
 
@@ -126,23 +113,19 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
             </span>
           </div>
           <Prose>{body.text}</Prose>
-          <Die
-            sides={20}
-            value={body.roll?.value ?? null}
-            tone={body.roll ? (body.roll.success ? 'good' : 'bad') : undefined}
-          />
-          {body.roll ? (
-            <>
-              <p
-                className={`text-center font-label text-xl font-bold tracking-[0.16em] uppercase ${body.roll.success ? 'text-brass' : 'text-rose'}`}
-              >
-                {body.roll.success ? 'Успіх' : 'Провал'}
-              </p>
-              {next()}
-            </>
-          ) : (
-            rollButton(`${name(body.roller)}, кидай d20`, body.roller)
-          )}
+          <RollingDie sides={20} value={body.roll?.value ?? null} success={body.roll?.success}>
+            {body.roll && (
+              <>
+                <p
+                  className={`text-center font-label text-xl font-bold tracking-[0.16em] uppercase ${body.roll.success ? 'text-brass' : 'text-rose'}`}
+                >
+                  {body.roll.success ? 'Успіх' : 'Провал'}
+                </p>
+                {next()}
+              </>
+            )}
+          </RollingDie>
+          {!body.roll && rollButton(`${name(body.roller)}, кидай d20`, body.roller)}
         </Card>
       );
       break;
@@ -151,18 +134,12 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
       content = (
         <Card>
           <Prose>{body.text}</Prose>
-          <Die sides={6} value={body.roll} />
-          {body.roll !== null ? (
-            <>
-              <p className="text-center font-label text-xl font-bold tracking-[0.16em] uppercase">
-                Випало: {body.roll}
-              </p>
-              {body.outcome && <p className="text-center text-bone/80 italic">{body.outcome}</p>}
-              {next()}
-            </>
-          ) : (
-            rollButton(`${name(body.roller)}, кидай d6`, body.roller)
-          )}
+          <RollingDie sides={6} value={body.roll}>
+            <p className="text-center font-label text-xl font-bold tracking-[0.16em] uppercase">Випало: {body.roll}</p>
+            {body.outcome && <p className="text-center text-bone/80 italic">{body.outcome}</p>}
+            {next()}
+          </RollingDie>
+          {body.roll === null && rollButton(`${name(body.roller)}, кидай d6`, body.roller)}
         </Card>
       );
       break;
@@ -231,31 +208,27 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
           <Prose>
             Життя закінчилось. Щоб повернутись, {name(body.who)} кидає d20: потрібно не менше {body.difficulty}.
           </Prose>
-          <Die
-            sides={20}
-            value={body.roll?.value ?? null}
-            tone={body.roll ? (body.roll.success ? 'good' : 'bad') : undefined}
-          />
-          {!body.roll ? (
-            rollButton(`${name(body.who)}, кидай d20`, body.who)
-          ) : (
-            <>
-              <p
-                className={`text-center font-label text-xl font-bold tracking-[0.16em] uppercase ${body.roll.success ? 'text-brass' : 'text-rose'}`}
-              >
-                {body.roll.success ? 'Повертається сам' : 'Потрібна допомога'}
-              </p>
-              {body.episode && (
-                <div className="grid gap-3 border-l-4 border-brass bg-ink p-4">
-                  <Label>Завдання для партнера</Label>
-                  <p className="font-display text-xl font-extrabold italic">{body.episode.title}</p>
-                  <p className="whitespace-pre-line">{body.episode.text}</p>
-                  {body.episode.timer && <Timer seconds={body.episode.timer} />}
-                </div>
-              )}
-              {next('Повернутись у гру')}
-            </>
-          )}
+          <RollingDie sides={20} value={body.roll?.value ?? null} success={body.roll?.success}>
+            {body.roll && (
+              <>
+                <p
+                  className={`text-center font-label text-xl font-bold tracking-[0.16em] uppercase ${body.roll.success ? 'text-brass' : 'text-rose'}`}
+                >
+                  {body.roll.success ? 'Повертається сам' : 'Потрібна допомога'}
+                </p>
+                {body.episode && (
+                  <div className="grid gap-3 border-l-4 border-brass bg-ink p-4">
+                    <Label>Завдання для партнера</Label>
+                    <p className="font-display text-xl font-extrabold italic">{body.episode.title}</p>
+                    <p className="whitespace-pre-line">{body.episode.text}</p>
+                    {body.episode.timer && <Timer seconds={body.episode.timer} />}
+                  </div>
+                )}
+                {next('Повернутись у гру')}
+              </>
+            )}
+          </RollingDie>
+          {!body.roll && rollButton(`${name(body.who)}, кидай d20`, body.who)}
         </Card>
       );
       break;
@@ -266,11 +239,8 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
           <Label>Останній ритуал</Label>
           <Title>Ритуал палацу</Title>
           <Prose>Те, що станеться далі, вирішує кубик. Кидайте разом, кидає той, хто хоче.</Prose>
-          <Die sides={6} value={body.roll} />
-          {body.roll === null ? (
-            <PrimaryButton onClick={() => send({ type: 'roll' })}>Кинути d6</PrimaryButton>
-          ) : (
-            body.episode && (
+          <RollingDie sides={6} value={body.roll}>
+            {body.episode && (
               <>
                 <div className="grid gap-3 border-l-4 border-brass bg-ink p-4">
                   <p className="font-display text-2xl font-extrabold italic">{body.episode.title}</p>
@@ -279,8 +249,9 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
                 </div>
                 {next('Ритуал завершено')}
               </>
-            )
-          )}
+            )}
+          </RollingDie>
+          {body.roll === null && <PrimaryButton onClick={() => send({ type: 'roll' })}>Кинути d6</PrimaryButton>}
         </Card>
       );
       break;

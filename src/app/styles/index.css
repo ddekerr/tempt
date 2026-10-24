@@ -25,3 +25,49 @@ body {
   color: var(--color-bone);
   font-family: var(--font-body);
 }
+
+/* Кубик: падає, крутиться й зупиняється на числі. Тривалість збігається з ROLL_MS у die.tsx. */
+@keyframes die-tumble {
+  0% {
+    transform: translateY(-28px) rotate(0deg) scale(0.8);
+  }
+  20% {
+    transform: translateY(0) rotate(170deg) scale(1.05);
+  }
+  40% {
+    transform: translateY(-16px) rotate(340deg) scale(0.95);
+  }
+  60% {
+    transform: translateY(0) rotate(530deg) scale(1.02);
+  }
+  80% {
+    transform: translateY(-6px) rotate(670deg);
+  }
+  100% {
+    transform: translateY(0) rotate(720deg) scale(1);
+  }
+}
+
+@keyframes die-land {
+  0% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.die-rolling {
+  animation: die-tumble 1.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.die-landed {
+  animation: die-land 0.28s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .die-rolling,
+  .die-landed {
+    animation: none;
+  }
+}

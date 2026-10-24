@@ -19,6 +19,40 @@ describe.each(SCRIPTS.map((script) => [script.id, script] as [string, StoryScrip
   });
 });
 
+describe('читабельність: текст має вміщатись на екран телефона', () => {
+  const LIMIT = {
+    say: 450,
+    title: 450,
+    task: 420,
+    effect: 380,
+    check: 380,
+    dice: 380,
+    choice: 380,
+    reward: 380,
+  } as const;
+
+  it.each(SCRIPTS.map((script) => [script.id, script] as [string, StoryScript]))(
+    '%s: сцени не задовгі',
+    (_id, script) => {
+      const tooLong: string[] = [];
+      script.chapters.forEach((chapter, c) =>
+        chapter.nodes.forEach((node, n) => {
+          if (node.text.length > LIMIT[node.kind]) tooLong.push(`глава ${c + 1}, вузол ${n + 1}: ${node.text.length}`);
+        }),
+      );
+      expect(tooLong).toEqual([]);
+    },
+  );
+
+  it.each(SCRIPTS.map((script) => [script.id, script] as [string, StoryScript]))(
+    '%s: гід, ритуали й воскресіння короткі',
+    (_id, script) => {
+      const long = [...script.guide, ...script.ritual, ...script.resurrection].filter((item) => item.text.length > 450);
+      expect(long).toEqual([]);
+    },
+  );
+});
+
 describe('помилки в даних історії', () => {
   const message = (mutate: (script: StoryScript) => void) => {
     const script = clone(base);

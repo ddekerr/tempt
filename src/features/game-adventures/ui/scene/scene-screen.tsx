@@ -23,8 +23,25 @@ const Title = ({ children }: { children: React.ReactNode }) => (
   <h2 className="font-display text-3xl leading-tight font-extrabold italic">{children}</h2>
 );
 
-const Prose = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-lg leading-relaxed whitespace-pre-line">{children}</p>
+/** `literary`: оповідь і репліки набрано шрифтом із засічками, щоб читалось як проза. `compact`: завдання, де ще таймер і кнопка. */
+const Prose = ({
+  children,
+  tone = 'plain',
+}: {
+  children: React.ReactNode;
+  tone?: 'plain' | 'literary' | 'compact';
+}) => (
+  <p
+    className={`whitespace-pre-line ${
+      tone === 'literary'
+        ? 'font-display text-[1.1rem] leading-[1.75]'
+        : tone === 'compact'
+          ? 'text-base leading-relaxed'
+          : 'text-lg leading-relaxed'
+    }`}
+  >
+    {children}
+  </p>
 );
 
 const whoLabel = (who: TaskWho, name: (role: Role) => string) => (who === 'both' ? 'Для вас обох' : `Для ${name(who)}`);
@@ -61,7 +78,7 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
       content = (
         <Card>
           <Title>{body.title}</Title>
-          <Prose>{body.text}</Prose>
+          <Prose tone="literary">{body.text}</Prose>
           {next()}
         </Card>
       );
@@ -71,7 +88,7 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
       content = (
         <Card>
           {body.speaker && <Label>{body.speaker}</Label>}
-          <Prose>{body.text}</Prose>
+          <Prose tone="literary">{body.text}</Prose>
           {next()}
         </Card>
       );
@@ -149,7 +166,7 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
         <Card>
           <Label>{whoLabel(body.who, name)}</Label>
           <Title>{body.title}</Title>
-          <Prose>{body.text}</Prose>
+          <Prose tone="compact">{body.text}</Prose>
           {body.timer && <Timer seconds={body.timer} />}
           {next('Готово')}
         </Card>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyAction, isFail } from './engine';
+import { applyAction, isFail, readerOf } from './engine';
 import { adventuresModule } from './module';
 import type { Chapter, StoryScript } from './script.types';
 import { makeCtx, seeded } from './memory-ctx';
@@ -33,13 +33,15 @@ function setup(script: StoryScript, queue: number[] = []) {
   return {
     ctx,
     send,
+    /** Рухає далі від імені того, хто читає поточну сцену (завдання бачить лише він). */
+    next: () => send({ type: 'advance' }, state.run ? readerOf(script, state.run) : 'male'),
     get state() {
       return state;
     },
   };
 }
 
-const body = (game: { state: AdvState }) => sceneFor(game.state, game.state.script!).body;
+const body = (game: { state: AdvState }) => sceneFor(game.state, game.state.script!, 'male').body;
 
 describe('старт і вихід', () => {
   it('не можна стартувати двічі чи відкрити закриту історію', () => {
@@ -70,7 +72,7 @@ describe('кидки', () => {
   it('кидає лише названий герой, один раз', () => {
     const game = setup(tiny(check(11)), [0.5]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.send({ type: 'roll' }, 'male')).toHaveProperty('error');
     expect(game.send({ type: 'roll' }, 'female')).not.toHaveProperty('error');
     expect(game.send({ type: 'roll' }, 'female')).toHaveProperty('error');
@@ -79,10 +81,10 @@ describe('кидки', () => {
   it('успіх, коли випало не менше за складність, дає XP і вдалий кидок', () => {
     const game = setup(tiny(check(11)), [0.5]); // d20: 1 + floor(0.5 * 20) = 11
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     game.send({ type: 'roll' }, 'female');
     expect(body(game)).toMatchObject({ kind: 'check', roll: { value: 11, success: true } });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'say', text: 'вийшло' });
     expect(game.state.heroes.female.xp).toBe(10);
     expect(game.state.run?.successes.female).toBe(1);
@@ -91,9 +93,9 @@ describe('кидки', () => {
   it('провал веде гілкою невдачі й XP не дає', () => {
     const game = setup(tiny(check(11)), [0.49]); // 10
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     game.send({ type: 'roll' }, 'female');
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ text: 'не вийшло' });
     expect(game.state.heroes.female.xp).toBe(0);
   });
@@ -101,8 +103,8 @@ describe('кидки', () => {
   it('без кидка рухатись далі не можна', () => {
     const game = setup(tiny(check(5)));
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    expect(game.send({ type: 'advance' })).toHaveProperty('error');
+    game.next();
+    expect(game.next()).toHaveProperty('error');
   });
 
   it('кубик d6 обирає розв’язку за числом', () => {
@@ -121,10 +123,10 @@ describe('кидки', () => {
     ]);
     const game = setup(script, [0.9]); // 1 + floor(0.9 * 6) = 6
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     game.send({ type: 'roll' }, 'male');
     expect(body(game)).toMatchObject({ roll: 6, outcome: 'багато' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ text: 'high' });
   });
 });
@@ -146,7 +148,7 @@ describe('вибір', () => {
     ]);
     const game = setup(script);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.send({ type: 'choose', index: 0 }, 'female')).toHaveProperty('error');
     expect(game.send({ type: 'choose', index: 5 }, 'male')).toHaveProperty('error');
     game.send({ type: 'choose', index: 1 }, 'male');
@@ -165,13 +167,13 @@ describe('предмети', () => {
     ]);
     const game = setup(script, [0.0, 0.99]); // 1, потім 20
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
+    game.next();
+    game.next();
     const [item] = game.state.treasury;
-    expect(sceneFor(game.state, game.state.script!).usable).toEqual([]);
+    expect(sceneFor(game.state, game.state.script!, 'male').usable).toEqual([]);
     game.send({ type: 'roll' }, 'male');
     expect(body(game)).toMatchObject({ roll: { value: 1, success: false } });
-    expect(sceneFor(game.state, game.state.script!).usable).toEqual([item.id]);
+    expect(sceneFor(game.state, game.state.script!, 'male').usable).toEqual([item.id]);
     game.send({ type: 'use-item', itemId: item.id }, 'female');
     expect(body(game)).toMatchObject({ roll: { value: 20, success: true } });
     expect(game.state.treasury).toHaveLength(0);
@@ -184,8 +186,8 @@ describe('предмети', () => {
     ]);
     const game = setup(script);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
+    game.next();
+    game.next();
     const [item] = game.state.treasury;
     game.send({ type: 'use-item', itemId: item.id });
     expect(body(game)).toMatchObject({ kind: 'task', who: 'female' });
@@ -196,7 +198,7 @@ describe('предмети', () => {
     const script = tiny([{ kind: 'reward', text: 'р', item: ring }]);
     const game = setup(script);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     const [item] = game.state.treasury;
     expect(game.send({ type: 'use-item', itemId: item.id })).toHaveProperty('error');
     expect(game.state.treasury).toHaveLength(1);
@@ -211,9 +213,9 @@ describe('життя, одяг, смерть', () => {
     ]);
     const game = setup(script);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.state.heroes.male.clothing).toBe(0);
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.state.heroes.female.hp).toBe(3);
     expect(game.ctx.data.heroes.male.clothing).toBe(0);
   });
@@ -225,13 +227,13 @@ describe('життя, одяг, смерть', () => {
     ]);
     const game = setup(script, [0.9]); // 19 ≥ 8
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'dead', who: 'female', roll: null });
-    expect(game.send({ type: 'advance' })).toHaveProperty('error');
+    expect(game.next()).toHaveProperty('error');
     expect(game.send({ type: 'roll' }, 'male')).toHaveProperty('error');
     game.send({ type: 'roll' }, 'female');
     expect(body(game)).toMatchObject({ kind: 'dead', roll: { success: true }, episode: null });
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.state.heroes.female.hp).toBe(1);
     expect(body(game)).toMatchObject({ kind: 'say', text: 'далі' });
   });
@@ -240,7 +242,7 @@ describe('життя, одяг, смерть', () => {
     const script = tiny([{ kind: 'effect', who: 'male', hp: -3, text: 'е' }]);
     const game = setup(script, [0.0, 0.0]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     game.send({ type: 'roll' }, 'male');
     expect(body(game)).toMatchObject({ kind: 'dead', roll: { success: false }, episode: { title: 'Р' } });
   });
@@ -249,10 +251,80 @@ describe('життя, одяг, смерть', () => {
     const script = tiny([{ kind: 'effect', who: 'male', hp: -3, text: 'е' }]);
     const game = setup(script, [0.9]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     game.send({ type: 'roll' }, 'male');
-    game.send({ type: 'advance' });
+    game.next();
     expect(game.ctx.data.heroes.male.hp).toBe(1);
+  });
+});
+
+describe('хто бачить завдання', () => {
+  const script = tiny([
+    { kind: 'check', roller: 'female', label: 'К', text: 'к', difficulty: 2 },
+    { kind: 'task', who: 'both', title: 'Секрет', text: 'що робити', timer: 30 },
+  ]);
+
+  const toTask = () => {
+    const game = setup(script, [0.99]);
+    game.send({ type: 'start', storyId: 't' });
+    game.next();
+    game.send({ type: 'roll' }, 'female');
+    game.next();
+    return game;
+  };
+
+  it('текст бачить лише той, хто кидав кубик; другому телефону він не передається', () => {
+    const game = toTask();
+    const mine = sceneFor(game.state, game.state.script!, 'female');
+    const theirs = sceneFor(game.state, game.state.script!, 'male');
+
+    expect(mine.body).toMatchObject({ kind: 'task', hidden: false, title: 'Секрет', text: 'що робити', timer: 30 });
+    expect(theirs.body).toMatchObject({ kind: 'task', hidden: true, title: '', text: '', reader: 'female' });
+    expect(JSON.stringify(theirs)).not.toContain('що робити');
+    expect(mine.actor).toBe('female');
+  });
+
+  it('завершити завдання може лише той, хто його читає', () => {
+    const game = toTask();
+    expect(game.send({ type: 'advance' }, 'male')).toHaveProperty('error');
+    expect(game.send({ type: 'advance' }, 'female')).not.toHaveProperty('error');
+  });
+
+  it('завдання після вибору читає той, хто вибирав', () => {
+    const choose = tiny([
+      {
+        kind: 'choice',
+        chooser: 'female',
+        text: 'в',
+        options: [
+          { label: 'А', next: 'a' },
+          { label: 'Б', next: 'a' },
+        ],
+      },
+      { id: 'a', kind: 'task', who: 'male', title: 'З', text: 'з' },
+    ]);
+    const game = setup(choose);
+    game.send({ type: 'start', storyId: 't' });
+    game.next();
+    game.send({ type: 'choose', index: 0 }, 'female');
+    expect(sceneFor(game.state, game.state.script!, 'female').body).toMatchObject({ hidden: false, reader: 'female' });
+    expect(sceneFor(game.state, game.state.script!, 'male').body).toMatchObject({ hidden: true });
+  });
+
+  it('завдання повернення після смерті бачить лише той, хто кидав кубик на повернення', () => {
+    const dead = tiny([{ kind: 'effect', who: 'male', hp: -3, text: 'е' }]);
+    const game = setup(dead, [0.0, 0.0]);
+    game.send({ type: 'start', storyId: 't' });
+    game.next();
+    game.send({ type: 'roll' }, 'male');
+    expect(sceneFor(game.state, game.state.script!, 'male').body).toMatchObject({
+      episodeHidden: false,
+      episode: { title: 'Р' },
+    });
+    const partner = sceneFor(game.state, game.state.script!, 'female').body;
+    expect(partner).toMatchObject({ kind: 'dead', episodeHidden: true, episode: null });
+    expect(game.send({ type: 'advance' }, 'female')).toHaveProperty('error');
+    expect(game.send({ type: 'advance' }, 'male')).not.toHaveProperty('error');
   });
 });
 
@@ -263,7 +335,7 @@ describe('штраф, коли одягу вже не лишилось', () => {
   it('жодного штрафу, поки одягу вистачає', () => {
     const game = setup(tiny([lose(2)]));
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'effect', clothing: -2, penalty: null });
     expect(game.state.heroes.male).toMatchObject({ clothing: 3, hp: 3 });
   });
@@ -278,16 +350,16 @@ describe('штраф, коли одягу вже не лишилось', () => {
     ]);
     const game = setup(script, [0, 0.5]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
+    game.next();
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'effect', penalty: 'harder', hp: 0, clothing: 0 });
     expect(game.state.heroes.male.hp).toBe(3);
 
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'check', difficulty: 12, harder: 1 });
     game.send({ type: 'roll' }, 'male'); // d20: 11 при складності 12, провал
     expect(body(game)).toMatchObject({ roll: { value: 11, success: false } });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'check', difficulty: 11, harder: 0 });
   });
 
@@ -302,30 +374,30 @@ describe('штраф, коли одягу вже не лишилось', () => {
     ]);
     const game = setup(script, [0.99]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
+    game.next();
+    game.next();
     expect(body(game)).toMatchObject({ penalty: 'blind' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'task', who: 'male', blind: ['male'] });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'task', who: 'female', blind: [] });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'task', who: 'both', blind: ['male'] });
   });
 
   it('штраф «втратити предмет» забирає предмет зі скарбниці', () => {
     // options: ['harder', 'blind', 'item'], випадкове 0.99 → 'item'; другий виклик вибирає предмет
     const script = tiny([
-      { kind: 'reward', text: 'р', item: { name: 'Прикраса', icon: '💎', description: 'д' } },
+      { kind: 'reward', text: 'р', item: { name: 'Прикраса', icon: '💎', description: 'д', effect: 'reroll' } },
       lose(5),
       lose(1),
     ]);
     const game = setup(script, [0.99, 0]);
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
+    game.next();
+    game.next();
     expect(game.state.treasury).toHaveLength(1);
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'effect', penalty: 'item', lostItem: 'Прикраса' });
     expect(game.state.treasury).toHaveLength(0);
   });
@@ -333,8 +405,33 @@ describe('штраф, коли одягу вже не лишилось', () => {
   it('втрата життя в сцені доводить до падіння', () => {
     const game = setup(tiny([{ kind: 'effect', who: 'male', hp: -3, text: 'е' }]));
     game.send({ type: 'start', storyId: 't' });
-    game.send({ type: 'advance' });
+    game.next();
     expect(body(game)).toMatchObject({ kind: 'dead', who: 'male' });
+  });
+});
+
+describe('срібна маска', () => {
+  const ward = { name: 'Маска', icon: '🎭', description: 'д', effect: 'ward' as const };
+
+  it('знімає накопичені штрафи й зникає, а без штрафів марна', () => {
+    const script = tiny([
+      { kind: 'reward', text: 'р', item: ward },
+      { kind: 'effect', who: 'male', clothing: -5, text: 'а' },
+      { kind: 'effect', who: 'male', clothing: -1, text: 'б' },
+      { kind: 'check', roller: 'male', label: 'К', text: 'к', difficulty: 5 },
+    ]);
+    // перший ctx.random() обирає штраф (['harder', 'blind', 'item']), 0 → «складніше»
+    const game = setup(script, [0]);
+    game.send({ type: 'start', storyId: 't' });
+    game.next();
+    const [mask] = game.state.treasury;
+    expect(game.send({ type: 'use-item', itemId: mask.id })).toHaveProperty('error');
+    game.next();
+    game.next();
+    expect(game.state.run?.harder).toBe(1);
+    game.send({ type: 'use-item', itemId: mask.id });
+    expect(game.state.run).toMatchObject({ harder: 0, blind: [] });
+    expect(game.state.treasury).toHaveLength(0);
   });
 });
 
@@ -356,6 +453,7 @@ describe('фінал і бажання', () => {
         applied: null,
         blind: [],
         harder: 0,
+        lastActor: null,
         dead: null,
         ritual: 3,
         winner: null,

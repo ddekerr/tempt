@@ -31,6 +31,15 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 export const chapterOf = (script: StoryScript, run: Run): Chapter => script.chapters[run.chapter - 1];
 export const nodeOf = (script: StoryScript, run: Run): StoryNode => chapterOf(script, run).nodes[run.index];
 
+/** Хто бачить текст завдання: той, хто кидав кубик або робив вибір. Без нього: виконавець завдання. */
+export function readerOf(script: StoryScript, run: Run): Role {
+  if (run.stage === 'ritual') return run.lastActor ?? 'male';
+  if (run.dead) return run.dead.who;
+  const node = nodeOf(script, run);
+  const fallback = node.kind === 'task' && node.who !== 'both' ? node.who : 'male';
+  return run.lastActor ?? fallback;
+}
+
 /** Свіжий знімок того, що живе в базі. Стан гри (run) лишається як є. */
 export function sync(state: AdvState, ctx: AdvCtx): AdvState {
   return {
@@ -147,7 +156,7 @@ function enter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, inde
 function enterChapter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): AdvState {
   const saved = ctx.progress().find((item) => item.storyId === run.storyId);
   ctx.saveProgress({ storyId: run.storyId, chapter: run.chapter, done: saved?.done ?? false });
-  return enter(sync(state, ctx), ctx, script, { ...run, blind: [], harder: 0 }, 0);
+  return enter(sync(state, ctx), ctx, script, { ...run, blind: [], harder: 0, lastActor: null }, 0);
 }
 
 function endChapter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): AdvState {
@@ -175,10 +184,16 @@ export function usableItems(state: AdvState, script: StoryScript): number[] {
   const canReroll = run.dead
     ? run.dead.roll !== null
     : (node.kind === 'check' || node.kind === 'dice') && run.roll !== null;
+  const canWard = !run.dead && (run.blind.length > 0 || run.harder > 0);
   const canSwap = !run.dead && node.kind === 'task' && node.who !== 'both' && !run.swapped;
 
   return state.treasury
-    .filter((item) => (item.effect === 'reroll' && canReroll) || (item.effect === 'swap' && canSwap))
+    .filter(
+      (item) =>
+        (item.effect === 'reroll' && canReroll) ||
+        (item.effect === 'swap' && canSwap) ||
+        (item.effect === 'ward' && canWard),
+    )
     .map((item) => item.id);
 }
 
@@ -201,6 +216,7 @@ export function beginRun(state: AdvState, ctx: AdvCtx, storyId: string, fromStar
     applied: null,
     blind: [],
     harder: 0,
+    lastActor: null,
     dead: null,
     ritual: null,
     winner: null,
@@ -235,7 +251,7 @@ export function applyAction(state: AdvState, action: AdvAction, by: Role, ctx: A
 
   switch (action.type) {
     case 'advance':
-      return advance(state, ctx, script, run);
+      return advance(state, ctx, script, run, by);
     case 'choose':
       return choose(state, ctx, script, run, by, action.index);
     case 'roll':
@@ -247,9 +263,10 @@ export function applyAction(state: AdvState, action: AdvAction, by: Role, ctx: A
   }
 }
 
-function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): Result {
+function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by: Role): Result {
   if (run.stage === 'ritual') {
     if (run.ritual === null) return fail('Спершу киньте кубик.');
+    if (by !== readerOf(script, run)) return fail('Ритуал читає той, хто кидав кубик.');
     const { male, female } = run.successes;
     const winner: Role = male === female ? (ctx.random() < 0.5 ? 'male' : 'female') : male > female ? 'male' : 'female';
     return withRun(state, { ...run, stage: 'wish', winner });
@@ -261,6 +278,8 @@ function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): R
   let live = run;
   if (run.dead) {
     if (!run.dead.roll) return fail('Спершу кидок на повернення.');
+    if (run.dead.episode !== null && by !== run.dead.who)
+      return fail('Завдання повернення бачить той, хто кидав кубик.');
     current = patchHero(state, ctx, run.dead.who, (hero) => ({ ...hero, hp: 1 }));
     live = { ...run, dead: null };
     current = withRun(current, live);
@@ -268,6 +287,9 @@ function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): R
 
   const chapter = chapterOf(script, live);
   const node = chapter.nodes[live.index];
+  if (node.kind === 'task' && !run.dead && by !== readerOf(script, live)) {
+    return fail('Завдання читає той, хто кидав кубик.');
+  }
 
   switch (node.kind) {
     case 'choice':
@@ -302,27 +324,27 @@ function choose(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by:
   if (by !== node.chooser) return fail('Вибирає партнер.');
   const option = node.options[index];
   if (!option) return fail('Такого варіанта немає.');
-  return goTo(state, ctx, script, run, nextIndex(chapter, run.index, option.next));
+  return goTo(state, ctx, script, { ...run, lastActor: by }, nextIndex(chapter, run.index, option.next));
 }
 
 function rollDice(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by: Role): Result {
   if (run.stage === 'ritual') {
     if (run.ritual !== null) return fail('Кубик уже кинуто.');
-    return withRun(state, { ...run, ritual: roll(ctx, 6) });
+    return withRun(state, { ...run, ritual: roll(ctx, 6), lastActor: by });
   }
   if (run.stage !== 'play') return fail('Зараз кидати нічого.');
 
   if (run.dead) {
     if (by !== run.dead.who) return fail('Кидає той, хто впав.');
     if (run.dead.roll) return fail('Кубик уже кинуто.');
-    return withRun(state, { ...run, dead: deadRoll(run.dead.who, script, ctx) });
+    return withRun(state, { ...run, dead: deadRoll(run.dead.who, script, ctx), lastActor: by });
   }
 
   const node = nodeOf(script, run);
   if (node.kind !== 'check' && node.kind !== 'dice') return fail('Зараз кидати нічого.');
   if (by !== node.roller) return fail('Кидає партнер.');
   if (run.roll) return fail('Кубик уже кинуто.');
-  return withRun(state, { ...run, roll: rollFor(node, ctx, run.harder) });
+  return withRun(state, { ...run, roll: rollFor(node, ctx, run.harder), lastActor: by });
 }
 
 function rollFor(node: StoryNode, ctx: AdvCtx, harder: number): Run['roll'] {
@@ -347,6 +369,7 @@ function useItem(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, it
   const next = sync(state, ctx);
 
   if (item.effect === 'swap') return withRun(next, { ...run, swapped: true });
+  if (item.effect === 'ward') return withRun(next, { ...run, blind: [], harder: 0 });
 
   if (run.dead) return withRun(next, { ...run, dead: deadRoll(run.dead.who, script, ctx) });
   return withRun(next, { ...run, roll: rollFor(nodeOf(script, run), ctx, run.harder) });

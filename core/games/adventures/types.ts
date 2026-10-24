@@ -95,6 +95,8 @@ export interface Run {
   swapped: boolean;
   /** Що востаннє змінила сцена-наслідок: потрібно, щоб показати, скільки справді втрачено. */
   applied: { hp: number; clothing: number; penalty: Penalty | null; lostItem: string | null } | null;
+  /** Хто востаннє кидав кубик чи робив вибір: саме він бачить наступне завдання. */
+  lastActor: Role | null;
   /** Хто до кінця глави виконує свої завдання із заплющеними очима. */
   blind: Role[];
   /** Наскільки складнішою стане найближча перевірка. */
@@ -146,7 +148,17 @@ export type SceneBody =
       roll: RollResult | null;
     }
   | { kind: 'dice'; text: string; roller: Role; roll: number | null; outcome: string | null }
-  | { kind: 'task'; who: TaskWho; title: string; text: string; timer?: number; blind: Role[] }
+  | {
+      kind: 'task';
+      who: TaskWho;
+      /** Хто читає завдання. Для другого телефона текст порожній. */
+      reader: Role;
+      hidden: boolean;
+      title: string;
+      text: string;
+      timer?: number;
+      blind: Role[];
+    }
   | {
       kind: 'effect';
       text: string;
@@ -157,8 +169,16 @@ export type SceneBody =
       lostItem: string | null;
     }
   | { kind: 'reward'; text: string; item: RewardItem }
-  | { kind: 'dead'; who: Role; difficulty: number; roll: RollResult | null; episode: Episode | null }
-  | { kind: 'ritual'; roll: number | null; episode: Episode | null }
+  | {
+      kind: 'dead';
+      who: Role;
+      difficulty: number;
+      roll: RollResult | null;
+      /** Завдання повернення бачить лише той, хто кидав кубик. */
+      episode: Episode | null;
+      episodeHidden: boolean;
+    }
+  | { kind: 'ritual'; roll: number | null; episode: Episode | null; episodeHidden: boolean; reader: Role | null }
   | { kind: 'wish'; winner: Role; successes: Record<Role, number> }
   | { kind: 'finish'; text: string; wish: string | null };
 

@@ -7,7 +7,7 @@ import { ROLES } from '../../roles';
  * Лише `strict`-об'єкти: зайве поле це майже завжди помилка в написанні.
  */
 
-export const ITEM_EFFECTS = ['reroll', 'swap'] as const;
+export const ITEM_EFFECTS = ['reroll', 'swap', 'ward'] as const;
 
 const text = z.string().trim().min(1, 'текст не може бути порожнім');
 const key = z.string().min(1);
@@ -80,7 +80,8 @@ const RewardNode = z.strictObject({
     name: text,
     icon: text,
     description: text,
-    effect: z.enum(ITEM_EFFECTS).optional(),
+    /** Кожен предмет щось уміє. */
+    effect: z.enum(ITEM_EFFECTS),
   }),
 });
 

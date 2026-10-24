@@ -30,7 +30,7 @@ export const adventuresModule: GameModule<AdvState, AdvAction, AdvView, AdvCtx> 
       hero: { ...state.heroes[role], name: state.names[role] },
       partner: { ...state.heroes[partner], name: state.names[partner] },
       treasury: state.treasury,
-      scene: state.run && state.script ? sceneFor(state, state.script) : null,
+      scene: state.run && state.script ? sceneFor(state, state.script, role) : null,
     };
   },
 

@@ -14,5 +14,5 @@ export type StoryNode = z.infer<typeof StoryNodeSchema>;
 export type Chapter = StoryScript['chapters'][number];
 export type Episode = StoryScript['resurrection'][number];
 export type RewardItem = Extract<StoryNode, { kind: 'reward' }>['item'];
-export type ItemEffect = NonNullable<RewardItem['effect']>;
+export type ItemEffect = RewardItem['effect'];
 export type TaskWho = Role | 'both';

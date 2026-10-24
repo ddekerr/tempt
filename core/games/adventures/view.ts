@@ -1,25 +1,29 @@
 import type { Role } from '../../roles';
 import type { StoryScript } from './script.types';
-import { nodeOf, partnerOf, usableItems } from './engine';
+import { nodeOf, partnerOf, readerOf, usableItems } from './engine';
 import { RESURRECT_DIFFICULTY, type AdvState, type SceneBody, type SceneView } from './types';
 
 /** Підставляє імена гравців у текст сценарію. */
 export const fill = (text: string, names: Record<Role, string>): string =>
   text.replaceAll('{male}', names.male).replaceAll('{female}', names.female);
 
-function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor: Role | 'any' } {
+function bodyFor(state: AdvState, script: StoryScript, viewer: Role): { body: SceneBody; actor: Role | 'any' } {
   const run = state.run!;
   const f = (text: string) => fill(text, state.names);
 
   if (run.stage === 'ritual') {
+    const reader = run.ritual === null ? null : readerOf(script, run);
     const episode = run.ritual === null ? null : script.ritual[run.ritual - 1];
+    const hidden = episode !== null && viewer !== reader;
     return {
       body: {
         kind: 'ritual',
         roll: run.ritual,
-        episode: episode ? { ...episode, title: f(episode.title), text: f(episode.text) } : null,
+        reader,
+        episodeHidden: hidden,
+        episode: episode && !hidden ? { ...episode, title: f(episode.title), text: f(episode.text) } : null,
       },
-      actor: 'any',
+      actor: reader ?? 'any',
     };
   }
 
@@ -33,15 +37,17 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
 
   if (run.dead) {
     const episode = run.dead.episode === null ? null : script.resurrection[run.dead.episode];
+    const hidden = episode !== null && viewer !== run.dead.who;
     return {
       body: {
         kind: 'dead',
         who: run.dead.who,
         difficulty: RESURRECT_DIFFICULTY,
         roll: run.dead.roll,
-        episode: episode ? { ...episode, title: f(episode.title), text: f(episode.text) } : null,
+        episodeHidden: hidden,
+        episode: episode && !hidden ? { ...episode, title: f(episode.title), text: f(episode.text) } : null,
       },
-      actor: run.dead.roll ? 'any' : run.dead.who,
+      actor: run.dead.roll ? (episode ? run.dead.who : 'any') : run.dead.who,
     };
   }
 
@@ -89,16 +95,20 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
     }
     case 'task': {
       const who = node.who !== 'both' && run.swapped ? partnerOf(node.who) : node.who;
+      const reader = readerOf(script, run);
+      const hidden = viewer !== reader;
       return {
         body: {
           kind: 'task',
           who,
-          title: f(node.title),
-          text: f(node.text),
-          timer: node.timer,
+          reader,
+          hidden,
+          title: hidden ? '' : f(node.title),
+          text: hidden ? '' : f(node.text),
+          timer: hidden ? undefined : node.timer,
           blind: who === 'both' ? run.blind : run.blind.filter((role) => role === who),
         },
-        actor: 'any',
+        actor: reader,
       };
     }
     case 'effect': {
@@ -121,10 +131,10 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
   }
 }
 
-/** Сцена для обох телефонів однакова, відрізняється лише те, чи твоя черга (це вирішує клієнт за `actor`). */
-export function sceneFor(state: AdvState, script: StoryScript): SceneView {
+/** Сцена для одного з телефонів. Однакова для обох, окрім завдань: їх бачить лише той, хто кидав кубик. */
+export function sceneFor(state: AdvState, script: StoryScript, viewer: Role): SceneView {
   const run = state.run!;
-  const { body, actor } = bodyFor(state, script);
+  const { body, actor } = bodyFor(state, script, viewer);
   return {
     storyTitle: script.title,
     chapter: run.chapter,

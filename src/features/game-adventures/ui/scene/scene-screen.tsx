@@ -160,15 +160,29 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
       content = (
         <Card>
           <Label>{whoLabel(body.who, name)}</Label>
-          <Title>{body.title}</Title>
-          <Prose tone="compact">{body.text}</Prose>
+          {body.hidden ? (
+            <>
+              <Title>Завдання читає {name(body.reader)}</Title>
+              <Waiting>Текст бачить лише {name(body.reader)}. Дочекайтесь, поки він розповість, що робити.</Waiting>
+            </>
+          ) : (
+            <>
+              <Title>{body.title}</Title>
+              <Prose tone="compact">{body.text}</Prose>
+              {body.who !== body.reader && (
+                <p className="text-sm text-bone/60">
+                  Це бачите лише ви. Розкажіть партнерові, що робити, як вам подобається.
+                </p>
+              )}
+            </>
+          )}
           {body.blind.length > 0 && (
             <p className="border-l-4 border-rose bg-ink px-4 py-3 text-sm text-bone/80">
               Із заплющеними очима: {body.blind.map((target) => name(target)).join(' і ')}.
             </p>
           )}
-          {body.timer && <Timer seconds={body.timer} />}
-          {next('Готово')}
+          {!body.hidden && body.timer && <Timer seconds={body.timer} />}
+          {!body.hidden && next('Готово')}
         </Card>
       );
       break;
@@ -246,7 +260,10 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
                     {body.episode.timer && <Timer seconds={body.episode.timer} />}
                   </div>
                 )}
-                {next('Повернутись у гру')}
+                {body.episodeHidden && (
+                  <Waiting>Завдання бачить лише {name(body.who)}. Дочекайтесь, поки розповість.</Waiting>
+                )}
+                {!body.episodeHidden && next('Повернутись у гру')}
               </>
             )}
           </RollingDie>
@@ -260,16 +277,23 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
         <Card>
           <Label>Останній ритуал</Label>
           <Title>Ритуал палацу</Title>
-          <Prose>Те, що станеться далі, вирішує кубик. Кидайте разом, кидає той, хто хоче.</Prose>
+          <Prose>
+            Те, що станеться далі, вирішує кубик. Кидає той, хто хоче, і лише він прочитає, що на вас чекає.
+          </Prose>
           <RollingDie sides={6} value={body.roll}>
-            {body.episode && (
+            {(body.episode || body.episodeHidden) && (
               <>
-                <div className="grid gap-3 border-l-4 border-brass bg-ink p-4">
-                  <p className="font-display text-2xl font-extrabold italic">{body.episode.title}</p>
-                  <p className="whitespace-pre-line">{body.episode.text}</p>
-                  {body.episode.timer && <Timer seconds={body.episode.timer} />}
-                </div>
-                {next('Ритуал завершено')}
+                {body.episode && (
+                  <div className="grid gap-3 border-l-4 border-brass bg-ink p-4">
+                    <p className="font-display text-2xl font-extrabold italic">{body.episode.title}</p>
+                    <p className="whitespace-pre-line">{body.episode.text}</p>
+                    {body.episode.timer && <Timer seconds={body.episode.timer} />}
+                  </div>
+                )}
+                {body.episodeHidden && body.reader && (
+                  <Waiting>Ритуал читає {name(body.reader)}. Дочекайтесь, поки він розповість.</Waiting>
+                )}
+                {!body.episodeHidden && next('Ритуал завершено')}
               </>
             )}
           </RollingDie>

@@ -91,6 +91,8 @@ export interface Run {
   roll: RollResult | null;
   /** Завдання передано партнерові амулетом. */
   swapped: boolean;
+  /** Що востаннє змінила сцена-наслідок: потрібно, щоб показати, скільки справді втрачено. */
+  applied: { hp: number; clothing: number; spill: boolean } | null;
   /** Герой без сил: чекає кидка на повернення. */
   dead: { who: Role; roll: RollResult | null; episode: number | null } | null;
   /** Кидок d6 на фінальний ритуал. */
@@ -131,7 +133,7 @@ export type SceneBody =
   | { kind: 'check'; text: string; label: string; difficulty: number; roller: Role; roll: RollResult | null }
   | { kind: 'dice'; text: string; roller: Role; roll: number | null; outcome: string | null }
   | { kind: 'task'; who: TaskWho; title: string; text: string; timer?: number }
-  | { kind: 'effect'; text: string; who: Role; hp: number; clothing: number }
+  | { kind: 'effect'; text: string; who: Role; hp: number; clothing: number; spill: boolean }
   | { kind: 'reward'; text: string; item: RewardItem }
   | { kind: 'dead'; who: Role; difficulty: number; roll: RollResult | null; episode: Episode | null }
   | { kind: 'ritual'; roll: number | null; episode: Episode | null }

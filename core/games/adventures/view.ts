@@ -101,11 +101,20 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
         actor: 'any',
       };
     }
-    case 'effect':
+    case 'effect': {
+      const applied = run.applied ?? { hp: node.hp ?? 0, clothing: node.clothing ?? 0, spill: false };
       return {
-        body: { kind: 'effect', text: f(node.text), who: node.who, hp: node.hp ?? 0, clothing: node.clothing ?? 0 },
+        body: {
+          kind: 'effect',
+          text: f(node.text),
+          who: node.who,
+          hp: applied.hp,
+          clothing: applied.clothing,
+          spill: applied.spill,
+        },
         actor: 'any',
       };
+    }
     case 'reward':
       return { body: { kind: 'reward', text: f(node.text), item: node.item }, actor: 'any' };
   }

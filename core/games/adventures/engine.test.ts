@@ -275,6 +275,47 @@ describe('життя, одяг, смерть', () => {
   });
 });
 
+describe('наслідки без одягу', () => {
+  it('коли одягу не лишилось, втрата одягу б’є по життю', () => {
+    const script = tiny([
+      { kind: 'effect', who: 'male', clothing: -5, text: 'весь' },
+      { kind: 'effect', who: 'male', clothing: -1, text: 'ще' },
+    ]);
+    const game = setup(script);
+    game.send({ type: 'start', storyId: 't' });
+    game.send({ type: 'advance' });
+    expect(game.state.heroes.male).toMatchObject({ clothing: 0, hp: 3 });
+    expect(body(game)).toMatchObject({ kind: 'effect', clothing: -5, hp: 0, spill: false });
+    game.send({ type: 'advance' });
+    expect(game.state.heroes.male).toMatchObject({ clothing: 0, hp: 2 });
+    expect(body(game)).toMatchObject({ kind: 'effect', clothing: 0, hp: -1, spill: true });
+  });
+
+  it('частина втрати, якій не вистачило одягу, теж іде в життя', () => {
+    const script = tiny([
+      { kind: 'effect', who: 'female', clothing: -4, text: 'а' },
+      { kind: 'effect', who: 'female', clothing: -3, text: 'б' },
+    ]);
+    const game = setup(script);
+    game.send({ type: 'start', storyId: 't' });
+    game.send({ type: 'advance' });
+    game.send({ type: 'advance' });
+    expect(game.state.heroes.female).toMatchObject({ clothing: 0, hp: 1 });
+  });
+
+  it('без одягу можна померти від звичайної втрати одягу', () => {
+    const script = tiny([
+      { kind: 'effect', who: 'male', clothing: -5, hp: -2, text: 'а' },
+      { kind: 'effect', who: 'male', clothing: -1, text: 'б' },
+    ]);
+    const game = setup(script);
+    game.send({ type: 'start', storyId: 't' });
+    game.send({ type: 'advance' });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'dead', who: 'male' });
+  });
+});
+
 describe('повне проходження справжньої історії', () => {
   function play(seed: number) {
     const ctx = makeCtx({ random: seeded(seed) });
@@ -321,6 +362,34 @@ describe('повне проходження справжньої історії'
     }
   });
 
+  it('історія без жодного успіху доходить до кінця, але не безкарно: хтось падає', () => {
+    const ctx = makeCtx({ random: () => 0 });
+    let state = adventuresModule.init(players, ctx);
+    const send = (action: AdvAction, by: 'male' | 'female') => {
+      const result = applyAction(state, action, by, ctx);
+      if (isFail(result)) throw new Error(`${action.type}: ${result.error}`);
+      state = result;
+    };
+    send({ type: 'start', storyId: SCRIPTS[0].id }, 'male');
+
+    let falls = 0;
+    for (let step = 0; step < 3000; step++) {
+      const b = sceneFor(state, state.script!).body;
+      if (b.kind === 'finish') break;
+      if (b.kind === 'dead' && !b.roll) falls++;
+      if (b.kind === 'choice') send({ type: 'choose', index: 0 }, b.chooser);
+      else if ((b.kind === 'check' || b.kind === 'dice') && !b.roll) send({ type: 'roll' }, b.roller);
+      else if (b.kind === 'dead' && !b.roll) send({ type: 'roll' }, b.who);
+      else if (b.kind === 'ritual' && b.roll === null) send({ type: 'roll' }, 'female');
+      else if (b.kind === 'wish') send({ type: 'wish', text: 'х' }, b.winner);
+      else send({ type: 'advance' }, 'male');
+    }
+
+    expect(state.run?.stage).toBe('finish');
+    expect(falls).toBeGreaterThan(0);
+    expect(state.run?.successes).toEqual({ male: 0, female: 0 });
+  });
+
   it('бажання загадує той, у кого більше вдалих кидків', () => {
     const ctx = makeCtx({ random: seeded(3) });
     let state = adventuresModule.init(players, ctx);
@@ -335,6 +404,7 @@ describe('повне проходження справжньої історії'
         index: 0,
         roll: null,
         swapped: false,
+        applied: null,
         dead: null,
         ritual: 3,
         winner: null,

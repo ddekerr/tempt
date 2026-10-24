@@ -180,7 +180,7 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
           <ul
             className={`flex flex-wrap gap-2 font-label text-sm font-semibold tracking-[0.14em] uppercase ${ROLE_TEXT_CLASS[body.who]}`}
           >
-            <li className="sr-only">{name(body.who)}</li>
+            <li className="py-1">{name(body.who)}</li>
             {body.hp !== 0 && (
               <li className="rounded-blade border border-current px-2.5 py-1">
                 {body.hp > 0 ? '+' : '−'}
@@ -194,6 +194,11 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
               </li>
             )}
           </ul>
+          {body.spill && (
+            <p className="border-l-4 border-rose bg-ink px-4 py-3 text-sm text-bone/80">
+              Одягу вже не лишилось, тож удар прийшовся на тіло.
+            </p>
+          )}
           {next()}
         </Card>
       );

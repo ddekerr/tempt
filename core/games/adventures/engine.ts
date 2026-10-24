@@ -73,18 +73,32 @@ function nextIndex(chapter: Chapter, index: number, override?: string): number {
 
 /** Входить у вузол: тут одразу діють наслідки (втрата одягу, нагорода). */
 function enter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, index: number): AdvState {
-  let next: AdvState = withRun(state, { ...run, stage: 'play', index, roll: null, swapped: false, dead: null });
+  let next: AdvState = withRun(state, {
+    ...run,
+    stage: 'play',
+    index,
+    roll: null,
+    swapped: false,
+    applied: null,
+    dead: null,
+  });
   const node = chapterOf(script, run).nodes[index];
 
   if (node.kind === 'effect') {
-    const hp = node.hp ?? 0;
-    const clothing = node.clothing ?? 0;
-    next = patchHero(next, ctx, node.who, (hero) => ({
-      ...hero,
-      hp: clamp(hero.hp + hp, 0, HERO_HP_MAX),
-      clothing: clamp(hero.clothing + clothing, 0, HERO_CLOTHING_MAX),
-    }));
-    if (next.heroes[node.who].hp === 0) {
+    const hero = state.heroes[node.who];
+    const wantHp = node.hp ?? 0;
+    const wantClothing = node.clothing ?? 0;
+    // Коли одягу вже нема, втрата не зникає: те, чого не вистачило, б'є по життю.
+    const spill = wantClothing < 0 ? Math.max(0, -wantClothing - hero.clothing) : 0;
+    const clothing = clamp(hero.clothing + wantClothing, 0, HERO_CLOTHING_MAX);
+    const hp = clamp(hero.hp + wantHp - spill, 0, HERO_HP_MAX);
+
+    next = patchHero(next, ctx, node.who, (current) => ({ ...current, hp, clothing }));
+    next = withRun(next, {
+      ...next.run!,
+      applied: { hp: hp - hero.hp, clothing: clothing - hero.clothing, spill: spill > 0 },
+    });
+    if (hp === 0 && hp < hero.hp) {
       next = withRun(next, { ...next.run!, dead: { who: node.who, roll: null, episode: null } });
     }
   }
@@ -117,10 +131,7 @@ function endChapter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run)
     return withRun(next, { ...run, stage: 'ritual', roll: null, ritual: null });
   }
 
-  // Між главами герої переводять подих: +1 життя.
-  for (const role of ['male', 'female'] as const) {
-    next = patchHero(next, ctx, role, (hero) => ({ ...hero, hp: Math.min(hero.hp + 1, HERO_HP_MAX) }));
-  }
+  // Життя між главами не повертається: лише воскресіння й початок історії.
   return enterChapter(next, ctx, script, { ...run, chapter: run.chapter + 1 });
 }
 
@@ -161,6 +172,7 @@ export function beginRun(state: AdvState, ctx: AdvCtx, storyId: string, fromStar
     index: 0,
     roll: null,
     swapped: false,
+    applied: null,
     dead: null,
     ritual: null,
     winner: null,

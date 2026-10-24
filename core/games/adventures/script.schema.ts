@@ -101,7 +101,6 @@ export const StoryScriptSchema = z.strictObject({
   id: key,
   title: text,
   description: text,
-  guide: z.array(z.strictObject({ title: text, text })),
   chapters: z.array(z.strictObject({ title: text, nodes: z.array(StoryNodeSchema).min(1) })).min(1),
   resurrection: z.array(EpisodeSchema).min(1),
   /** Ритуал вирішує d6, тож варіантів рівно шість. */

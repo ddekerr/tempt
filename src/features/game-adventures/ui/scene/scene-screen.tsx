@@ -44,6 +44,13 @@ const Prose = ({
   </p>
 );
 
+const PENALTY_TEXT = (body: Extract<SceneBody, { kind: 'effect' }>, name: (role: Role) => string) =>
+  body.penalty === 'blind'
+    ? `До кінця глави ${name(body.who)} виконує свої завдання із заплющеними очима.`
+    : body.penalty === 'harder'
+      ? 'Найближча перевірка стане складнішою на 1.'
+      : `Зі скарбниці зникає «${body.lostItem}».`;
+
 const whoLabel = (who: TaskWho, name: (role: Role) => string) => (who === 'both' ? 'Для вас обох' : `Для ${name(who)}`);
 
 export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
@@ -61,19 +68,6 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
   let content: React.ReactNode;
 
   switch (body.kind) {
-    case 'guide':
-      content = (
-        <Card>
-          <Label>
-            Гід · {body.index + 1} з {body.total}
-          </Label>
-          <Title>{body.title}</Title>
-          <Prose>{body.text}</Prose>
-          {next(body.index + 1 === body.total ? 'Почати' : 'Далі')}
-        </Card>
-      );
-      break;
-
     case 'title':
       content = (
         <Card>
@@ -127,6 +121,7 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
             <Label>{body.label}</Label>
             <span className="rounded-blade border border-brass px-2.5 py-1 font-label text-xs font-semibold tracking-[0.14em] text-brass uppercase">
               Складність {body.difficulty}
+              {body.harder > 0 && ` (+${body.harder})`}
             </span>
           </div>
           <Prose>{body.text}</Prose>
@@ -167,6 +162,11 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
           <Label>{whoLabel(body.who, name)}</Label>
           <Title>{body.title}</Title>
           <Prose tone="compact">{body.text}</Prose>
+          {body.blind.length > 0 && (
+            <p className="border-l-4 border-rose bg-ink px-4 py-3 text-sm text-bone/80">
+              Із заплющеними очима: {body.blind.map((target) => name(target)).join(' і ')}.
+            </p>
+          )}
           {body.timer && <Timer seconds={body.timer} />}
           {next('Готово')}
         </Card>
@@ -194,9 +194,9 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
               </li>
             )}
           </ul>
-          {body.spill && (
+          {body.penalty && (
             <p className="border-l-4 border-rose bg-ink px-4 py-3 text-sm text-bone/80">
-              Одягу вже не лишилось, тож удар прийшовся на тіло.
+              Одягу вже не лишилось. {PENALTY_TEXT(body, name)}
             </p>
           )}
           {next()}

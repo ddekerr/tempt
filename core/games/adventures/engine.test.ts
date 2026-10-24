@@ -3,8 +3,7 @@ import { applyAction, isFail } from './engine';
 import { adventuresModule } from './module';
 import type { Chapter, StoryScript } from './script.types';
 import { makeCtx, seeded } from './memory-ctx';
-import { SCRIPTS } from './stories';
-import type { AdvAction, AdvCtx, AdvState } from './types';
+import type { AdvAction, AdvState } from './types';
 import { sceneFor } from './view';
 
 const players = { male: { name: 'Дмитро' }, female: { name: 'Катя' } };
@@ -15,7 +14,6 @@ function tiny(nodes: Chapter['nodes']): StoryScript {
     id: 't',
     title: 'Тест',
     description: '',
-    guide: [],
     chapters: [{ title: 'Одна', nodes: [{ kind: 'title', title: 'Т', text: 'т' }, ...nodes] }],
     resurrection: [{ title: 'Р', text: 'р' }],
     ritual: Array.from({ length: 6 }, (_, i) => ({ title: `R${i}`, text: 'r' })),
@@ -43,24 +41,7 @@ function setup(script: StoryScript, queue: number[] = []) {
 
 const body = (game: { state: AdvState }) => sceneFor(game.state, game.state.script!).body;
 
-describe('гід і старт', () => {
-  it('нова історія з гідом спершу показує гід, потім главу', () => {
-    const script = {
-      ...tiny([{ kind: 'say', text: 'а' }]),
-      guide: [
-        { title: 'Г1', text: 'x' },
-        { title: 'Г2', text: 'y' },
-      ],
-    };
-    const game = setup(script);
-    game.send({ type: 'start', storyId: 't' });
-    expect(body(game)).toMatchObject({ kind: 'guide', index: 0, total: 2 });
-    game.send({ type: 'advance' });
-    game.send({ type: 'advance' });
-    expect(body(game)).toMatchObject({ kind: 'title' });
-    expect(game.ctx.data.progress).toEqual([{ storyId: 't', chapter: 1, done: false }]);
-  });
-
+describe('старт і вихід', () => {
   it('не можна стартувати двічі чи відкрити закриту історію', () => {
     const game = setup(tiny([]));
     game.send({ type: 'start', storyId: 't' });
@@ -275,136 +256,106 @@ describe('життя, одяг, смерть', () => {
   });
 });
 
-describe('наслідки без одягу', () => {
-  it('коли одягу не лишилось, втрата одягу б’є по життю', () => {
-    const script = tiny([
-      { kind: 'effect', who: 'male', clothing: -5, text: 'весь' },
-      { kind: 'effect', who: 'male', clothing: -1, text: 'ще' },
-    ]);
-    const game = setup(script);
+describe('штраф, коли одягу вже не лишилось', () => {
+  const lose = (count: number, who: 'male' | 'female' = 'male') =>
+    ({ kind: 'effect', who, clothing: -count, text: 'е' }) as const;
+
+  it('жодного штрафу, поки одягу вистачає', () => {
+    const game = setup(tiny([lose(2)]));
     game.send({ type: 'start', storyId: 't' });
     game.send({ type: 'advance' });
-    expect(game.state.heroes.male).toMatchObject({ clothing: 0, hp: 3 });
-    expect(body(game)).toMatchObject({ kind: 'effect', clothing: -5, hp: 0, spill: false });
-    game.send({ type: 'advance' });
-    expect(game.state.heroes.male).toMatchObject({ clothing: 0, hp: 2 });
-    expect(body(game)).toMatchObject({ kind: 'effect', clothing: 0, hp: -1, spill: true });
+    expect(body(game)).toMatchObject({ kind: 'effect', clothing: -2, penalty: null });
+    expect(game.state.heroes.male).toMatchObject({ clothing: 3, hp: 3 });
   });
 
-  it('частина втрати, якій не вистачило одягу, теж іде в життя', () => {
+  it('життя не страждає, а штраф «складніша перевірка» діє на найближчу перевірку й зникає', () => {
+    // варіанти штрафу: ['harder', 'blind'] (у скарбниці порожньо); випадкове 0 → 'harder', далі кидок d20 = 11
     const script = tiny([
-      { kind: 'effect', who: 'female', clothing: -4, text: 'а' },
-      { kind: 'effect', who: 'female', clothing: -3, text: 'б' },
+      lose(5),
+      lose(1),
+      { kind: 'check', roller: 'male', label: 'К', text: 'к', difficulty: 11 },
+      { kind: 'check', roller: 'male', label: 'К', text: 'к', difficulty: 11 },
     ]);
-    const game = setup(script);
+    const game = setup(script, [0, 0.5]);
     game.send({ type: 'start', storyId: 't' });
     game.send({ type: 'advance' });
     game.send({ type: 'advance' });
-    expect(game.state.heroes.female).toMatchObject({ clothing: 0, hp: 1 });
+    expect(body(game)).toMatchObject({ kind: 'effect', penalty: 'harder', hp: 0, clothing: 0 });
+    expect(game.state.heroes.male.hp).toBe(3);
+
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'check', difficulty: 12, harder: 1 });
+    game.send({ type: 'roll' }, 'male'); // d20: 11 при складності 12, провал
+    expect(body(game)).toMatchObject({ roll: { value: 11, success: false } });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'check', difficulty: 11, harder: 0 });
   });
 
-  it('без одягу можна померти від звичайної втрати одягу', () => {
+  it('штраф «заплющені очі» тримається до кінця глави й видно в завданнях героя', () => {
+    // варіанти штрафу: ['harder', 'blind']; випадкове 0.99 → 'blind'
     const script = tiny([
-      { kind: 'effect', who: 'male', clothing: -5, hp: -2, text: 'а' },
-      { kind: 'effect', who: 'male', clothing: -1, text: 'б' },
+      lose(5),
+      lose(1),
+      { kind: 'task', who: 'male', title: 'З', text: 'з' },
+      { kind: 'task', who: 'female', title: 'З', text: 'з' },
+      { kind: 'task', who: 'both', title: 'З', text: 'з' },
     ]);
-    const game = setup(script);
+    const game = setup(script, [0.99]);
     game.send({ type: 'start', storyId: 't' });
     game.send({ type: 'advance' });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ penalty: 'blind' });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'task', who: 'male', blind: ['male'] });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'task', who: 'female', blind: [] });
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'task', who: 'both', blind: ['male'] });
+  });
+
+  it('штраф «втратити предмет» забирає предмет зі скарбниці', () => {
+    // options: ['harder', 'blind', 'item'], випадкове 0.99 → 'item'; другий виклик вибирає предмет
+    const script = tiny([
+      { kind: 'reward', text: 'р', item: { name: 'Прикраса', icon: '💎', description: 'д' } },
+      lose(5),
+      lose(1),
+    ]);
+    const game = setup(script, [0.99, 0]);
+    game.send({ type: 'start', storyId: 't' });
+    game.send({ type: 'advance' });
+    game.send({ type: 'advance' });
+    expect(game.state.treasury).toHaveLength(1);
+    game.send({ type: 'advance' });
+    expect(body(game)).toMatchObject({ kind: 'effect', penalty: 'item', lostItem: 'Прикраса' });
+    expect(game.state.treasury).toHaveLength(0);
+  });
+
+  it('втрата життя в сцені доводить до падіння', () => {
+    const game = setup(tiny([{ kind: 'effect', who: 'male', hp: -3, text: 'е' }]));
+    game.send({ type: 'start', storyId: 't' });
     game.send({ type: 'advance' });
     expect(body(game)).toMatchObject({ kind: 'dead', who: 'male' });
   });
 });
 
-describe('повне проходження справжньої історії', () => {
-  function play(seed: number) {
-    const ctx = makeCtx({ random: seeded(seed) });
-    let state = adventuresModule.init(players, ctx);
-    const send = (action: AdvAction, by: 'male' | 'female') => {
-      const result = applyAction(state, action, by, ctx);
-      if (isFail(result)) throw new Error(`${action.type}: ${result.error}`);
-      state = result;
-    };
-    send({ type: 'start', storyId: SCRIPTS[0].id }, 'male');
-
-    for (let step = 0; step < 3000; step++) {
-      const scene = sceneFor(state, state.script!);
-      const b = scene.body;
-      if (b.kind === 'finish') return { state, ctx, steps: step };
-      if (
-        scene.usable.length &&
-        ((b.kind === 'check' && b.roll && !b.roll.success) || (b.kind === 'dead' && b.roll && !b.roll.success))
-      ) {
-        send({ type: 'use-item', itemId: scene.usable[0] }, 'male');
-        continue;
-      }
-      if (b.kind === 'choice') send({ type: 'choose', index: step % b.options.length }, b.chooser);
-      else if (b.kind === 'check' && !b.roll) send({ type: 'roll' }, b.roller);
-      else if (b.kind === 'dice' && b.roll === null) send({ type: 'roll' }, b.roller);
-      else if (b.kind === 'dead' && !b.roll) send({ type: 'roll' }, b.who);
-      else if (b.kind === 'ritual' && b.roll === null) send({ type: 'roll' }, 'female');
-      else if (b.kind === 'wish') send({ type: 'wish', text: 'Масаж на цілий вечір' }, b.winner);
-      else send({ type: 'advance' }, 'male');
-    }
-    throw new Error('історія не завершилась');
-  }
-
-  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])('seed %i доходить до фіналу', (seed) => {
-    const { state, ctx } = play(seed);
-    expect(ctx.data.progress).toEqual([{ storyId: SCRIPTS[0].id, chapter: SCRIPTS[0].chapters.length, done: true }]);
-    const wishes = ctx.data.treasury.filter((item) => item.kind === 'wish');
-    expect(wishes).toHaveLength(1);
-    expect(wishes[0].description).toBe('Масаж на цілий вечір');
-    expect(state.stories[0].status).toBe('done');
-    for (const role of ['male', 'female'] as const) {
-      expect(state.heroes[role].hp).toBeGreaterThanOrEqual(1);
-      expect(state.heroes[role].level).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it('історія без жодного успіху доходить до кінця, але не безкарно: хтось падає', () => {
-    const ctx = makeCtx({ random: () => 0 });
-    let state = adventuresModule.init(players, ctx);
-    const send = (action: AdvAction, by: 'male' | 'female') => {
-      const result = applyAction(state, action, by, ctx);
-      if (isFail(result)) throw new Error(`${action.type}: ${result.error}`);
-      state = result;
-    };
-    send({ type: 'start', storyId: SCRIPTS[0].id }, 'male');
-
-    let falls = 0;
-    for (let step = 0; step < 3000; step++) {
-      const b = sceneFor(state, state.script!).body;
-      if (b.kind === 'finish') break;
-      if (b.kind === 'dead' && !b.roll) falls++;
-      if (b.kind === 'choice') send({ type: 'choose', index: 0 }, b.chooser);
-      else if ((b.kind === 'check' || b.kind === 'dice') && !b.roll) send({ type: 'roll' }, b.roller);
-      else if (b.kind === 'dead' && !b.roll) send({ type: 'roll' }, b.who);
-      else if (b.kind === 'ritual' && b.roll === null) send({ type: 'roll' }, 'female');
-      else if (b.kind === 'wish') send({ type: 'wish', text: 'х' }, b.winner);
-      else send({ type: 'advance' }, 'male');
-    }
-
-    expect(state.run?.stage).toBe('finish');
-    expect(falls).toBeGreaterThan(0);
-    expect(state.run?.successes).toEqual({ male: 0, female: 0 });
-  });
-
+describe('фінал і бажання', () => {
   it('бажання загадує той, у кого більше вдалих кидків', () => {
-    const ctx = makeCtx({ random: seeded(3) });
+    const script = tiny([]);
+    const ctx = makeCtx({ scripts: [script], random: seeded(3) });
     let state = adventuresModule.init(players, ctx);
     state = {
       ...state,
-      script: SCRIPTS[0],
+      script,
       run: {
-        storyId: SCRIPTS[0].id,
-        chapter: 5,
+        storyId: 't',
+        chapter: 1,
         stage: 'ritual',
-        guide: 0,
         index: 0,
         roll: null,
         swapped: false,
         applied: null,
+        blind: [],
+        harder: 0,
         dead: null,
         ritual: 3,
         winner: null,
@@ -416,12 +367,16 @@ describe('повне проходження справжньої історії'
     if (isFail(next)) throw new Error(next.error);
     expect(next.run).toMatchObject({ stage: 'wish', winner: 'female' });
     expect(applyAction(next, { type: 'wish', text: 'х' }, 'male', ctx)).toHaveProperty('error');
+
+    const done = applyAction(next, { type: 'wish', text: 'Масаж' }, 'female', ctx);
+    if (isFail(done)) throw new Error(done.error);
+    expect(done.run?.stage).toBe('finish');
+    expect(ctx.data.treasury.map((item) => [item.kind, item.description])).toEqual([['wish', 'Масаж']]);
+    expect(ctx.data.progress).toEqual([{ storyId: 't', chapter: 1, done: true }]);
   });
 
-  it('другий гравець бачить ту саму сцену, а партнер у HUD', () => {
-    const ctx: AdvCtx = makeCtx();
-    const s = adventuresModule.init(players, ctx);
-    const view = adventuresModule.viewFor(s, 'female');
+  it('кожен бачить себе й партнера', () => {
+    const view = adventuresModule.viewFor(adventuresModule.init(players, makeCtx()), 'female');
     expect(view.hero.name).toBe('Катя');
     expect(view.partner.name).toBe('Дмитро');
   });

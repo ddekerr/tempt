@@ -11,14 +11,6 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
   const run = state.run!;
   const f = (text: string) => fill(text, state.names);
 
-  if (run.stage === 'guide') {
-    const card = script.guide[run.guide];
-    return {
-      body: { kind: 'guide', title: f(card.title), text: f(card.text), index: run.guide, total: script.guide.length },
-      actor: 'any',
-    };
-  }
-
   if (run.stage === 'ritual') {
     const episode = run.ritual === null ? null : script.ritual[run.ritual - 1];
     return {
@@ -75,7 +67,8 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
           kind: 'check',
           text: f(node.text),
           label: f(node.label),
-          difficulty: node.difficulty,
+          difficulty: node.difficulty + run.harder,
+          harder: run.harder,
           roller: node.roller,
           roll: run.roll,
         },
@@ -97,12 +90,19 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
     case 'task': {
       const who = node.who !== 'both' && run.swapped ? partnerOf(node.who) : node.who;
       return {
-        body: { kind: 'task', who, title: f(node.title), text: f(node.text), timer: node.timer },
+        body: {
+          kind: 'task',
+          who,
+          title: f(node.title),
+          text: f(node.text),
+          timer: node.timer,
+          blind: who === 'both' ? run.blind : run.blind.filter((role) => role === who),
+        },
         actor: 'any',
       };
     }
     case 'effect': {
-      const applied = run.applied ?? { hp: node.hp ?? 0, clothing: node.clothing ?? 0, spill: false };
+      const applied = run.applied ?? { hp: node.hp ?? 0, clothing: node.clothing ?? 0, penalty: null, lostItem: null };
       return {
         body: {
           kind: 'effect',
@@ -110,7 +110,8 @@ function bodyFor(state: AdvState, script: StoryScript): { body: SceneBody; actor
           who: node.who,
           hp: applied.hp,
           clothing: applied.clothing,
-          spill: applied.spill,
+          penalty: applied.penalty,
+          lostItem: applied.lostItem,
         },
         actor: 'any',
       };

@@ -13,7 +13,6 @@ export type StoryScript = z.infer<typeof StoryScriptSchema>;
 export type StoryNode = z.infer<typeof StoryNodeSchema>;
 export type Chapter = StoryScript['chapters'][number];
 export type Episode = StoryScript['resurrection'][number];
-export type GuideCard = StoryScript['guide'][number];
 export type RewardItem = Extract<StoryNode, { kind: 'reward' }>['item'];
 export type ItemEffect = NonNullable<RewardItem['effect']>;
 export type TaskWho = Role | 'both';

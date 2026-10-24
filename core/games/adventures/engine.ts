@@ -11,6 +11,7 @@ import {
   type AdvCtx,
   type AdvState,
   type Hero,
+  type Penalty,
   type Run,
 } from './types';
 
@@ -71,6 +72,32 @@ function nextIndex(chapter: Chapter, index: number, override?: string): number {
   return index + 1 < chapter.nodes.length ? index + 1 : -1;
 }
 
+const noPenalty = (state: AdvState) => ({
+  run: state.run!,
+  penalty: null as Penalty | null,
+  lostItem: null as string | null,
+});
+
+/**
+ * Штраф, коли втрачати вже нічого: до кінця глави завдання виконуються із заплющеними очима,
+ * найближча перевірка складніша на 1 або зі скарбниці зникає один предмет. Що саме, вирішує випадок.
+ */
+function applyPenalty(state: AdvState, ctx: AdvCtx, who: Role) {
+  const run = state.run!;
+  const items = state.treasury.filter((item) => item.kind === 'item');
+  const options: Penalty[] = ['harder'];
+  if (!run.blind.includes(who)) options.push('blind');
+  if (items.length > 0) options.push('item');
+
+  const penalty = options[Math.floor(ctx.random() * options.length)];
+  if (penalty === 'blind') return { run: { ...run, blind: [...run.blind, who] }, penalty, lostItem: null };
+  if (penalty === 'harder') return { run: { ...run, harder: run.harder + 1 }, penalty, lostItem: null };
+
+  const lost = items[Math.floor(ctx.random() * items.length)];
+  ctx.removeTreasure(lost.id);
+  return { run, penalty, lostItem: lost.name };
+}
+
 /** Входить у вузол: тут одразу діють наслідки (втрата одягу, нагорода). */
 function enter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, index: number): AdvState {
   let next: AdvState = withRun(state, {
@@ -86,17 +113,17 @@ function enter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, inde
 
   if (node.kind === 'effect') {
     const hero = state.heroes[node.who];
-    const wantHp = node.hp ?? 0;
     const wantClothing = node.clothing ?? 0;
-    // Коли одягу вже нема, втрата не зникає: те, чого не вистачило, б'є по життю.
-    const spill = wantClothing < 0 ? Math.max(0, -wantClothing - hero.clothing) : 0;
     const clothing = clamp(hero.clothing + wantClothing, 0, HERO_CLOTHING_MAX);
-    const hp = clamp(hero.hp + wantHp - spill, 0, HERO_HP_MAX);
+    const hp = clamp(hero.hp + (node.hp ?? 0), 0, HERO_HP_MAX);
 
     next = patchHero(next, ctx, node.who, (current) => ({ ...current, hp, clothing }));
-    next = withRun(next, {
-      ...next.run!,
-      applied: { hp: hp - hero.hp, clothing: clothing - hero.clothing, spill: spill > 0 },
+    // Одягу вже не вистачає, а втрата настала: замість життя герой платить умовою гри.
+    const lacking = wantClothing < 0 && hero.clothing < -wantClothing;
+    const { run: afterPenalty, lostItem, penalty } = lacking ? applyPenalty(next, ctx, node.who) : noPenalty(next);
+    next = withRun(lostItem ? sync(next, ctx) : next, {
+      ...afterPenalty,
+      applied: { hp: hp - hero.hp, clothing: clothing - hero.clothing, penalty, lostItem },
     });
     if (hp === 0 && hp < hero.hp) {
       next = withRun(next, { ...next.run!, dead: { who: node.who, roll: null, episode: null } });
@@ -120,7 +147,7 @@ function enter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, inde
 function enterChapter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): AdvState {
   const saved = ctx.progress().find((item) => item.storyId === run.storyId);
   ctx.saveProgress({ storyId: run.storyId, chapter: run.chapter, done: saved?.done ?? false });
-  return enter(sync(state, ctx), ctx, script, run, 0);
+  return enter(sync(state, ctx), ctx, script, { ...run, blind: [], harder: 0 }, 0);
 }
 
 function endChapter(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): AdvState {
@@ -168,11 +195,12 @@ export function beginRun(state: AdvState, ctx: AdvCtx, storyId: string, fromStar
     storyId,
     chapter,
     stage: 'play',
-    guide: 0,
     index: 0,
     roll: null,
     swapped: false,
     applied: null,
+    blind: [],
+    harder: 0,
     dead: null,
     ritual: null,
     winner: null,
@@ -187,10 +215,6 @@ export function beginRun(state: AdvState, ctx: AdvCtx, storyId: string, fromStar
     }
   }
 
-  if (summary.status === 'new' && !fromStart && script.guide.length > 0) {
-    ctx.saveProgress({ storyId, chapter: 1, done: false });
-    return withRun(sync(next, ctx), { ...run, stage: 'guide' });
-  }
   return enterChapter(next, ctx, script, run);
 }
 
@@ -224,11 +248,6 @@ export function applyAction(state: AdvState, action: AdvAction, by: Role, ctx: A
 }
 
 function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): Result {
-  if (run.stage === 'guide') {
-    if (run.guide + 1 < script.guide.length) return withRun(state, { ...run, guide: run.guide + 1 });
-    return enterChapter(state, ctx, script, { ...run, stage: 'play' });
-  }
-
   if (run.stage === 'ritual') {
     if (run.ritual === null) return fail('Спершу киньте кубик.');
     const { male, female } = run.successes;
@@ -259,6 +278,7 @@ function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run): R
         current = gainXp(current, ctx, node.roller, XP_CHECK);
         live = { ...live, successes: { ...live.successes, [node.roller]: live.successes[node.roller] + 1 } };
       }
+      live = { ...live, harder: 0 };
       const override = live.roll.success ? node.onSuccess : node.onFail;
       return goTo(current, ctx, script, live, nextIndex(chapter, live.index, override));
     }
@@ -302,13 +322,13 @@ function rollDice(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, b
   if (node.kind !== 'check' && node.kind !== 'dice') return fail('Зараз кидати нічого.');
   if (by !== node.roller) return fail('Кидає партнер.');
   if (run.roll) return fail('Кубик уже кинуто.');
-  return withRun(state, { ...run, roll: rollFor(node, ctx) });
+  return withRun(state, { ...run, roll: rollFor(node, ctx, run.harder) });
 }
 
-function rollFor(node: StoryNode, ctx: AdvCtx): Run['roll'] {
+function rollFor(node: StoryNode, ctx: AdvCtx, harder: number): Run['roll'] {
   if (node.kind === 'check') {
     const value = roll(ctx, 20);
-    return { value, success: value >= node.difficulty };
+    return { value, success: value >= node.difficulty + harder };
   }
   return { value: roll(ctx, 6), success: true };
 }
@@ -329,7 +349,7 @@ function useItem(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, it
   if (item.effect === 'swap') return withRun(next, { ...run, swapped: true });
 
   if (run.dead) return withRun(next, { ...run, dead: deadRoll(run.dead.who, script, ctx) });
-  return withRun(next, { ...run, roll: rollFor(nodeOf(script, run), ctx) });
+  return withRun(next, { ...run, roll: rollFor(nodeOf(script, run), ctx, run.harder) });
 }
 
 function makeWish(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by: Role, text: string): Result {

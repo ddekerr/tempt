@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Ctx } from '../../game';
 import type { Role } from '../../roles';
-import type { Episode, ItemEffect, RewardItem, StoryScript, TaskWho } from './script.types';
+import type { Episode, RewardItem, StoryScript, TaskWho } from './script.types';
 
 export const HERO_HP_MAX = 3;
 export const HERO_CLOTHING_MAX = 5;
@@ -77,14 +77,16 @@ export interface RollResult {
   success: boolean;
 }
 
-export type Stage = 'guide' | 'play' | 'ritual' | 'wish' | 'finish';
+export type Stage = 'play' | 'ritual' | 'wish' | 'finish';
+
+/** Що чекає на героя, коли одягу вже немає, а втрата все одно настала. */
+export type Penalty = 'blind' | 'harder' | 'item';
 
 /** Те, що відбувається просто зараз: де ви в історії. Живе, поки відкрита кімната. */
 export interface Run {
   storyId: string;
   chapter: number;
   stage: Stage;
-  guide: number;
   /** Позиція у вузлах глави. */
   index: number;
   /** Результат кидка поточної сцени: d20 для перевірки, d6 для кубика. */
@@ -92,7 +94,11 @@ export interface Run {
   /** Завдання передано партнерові амулетом. */
   swapped: boolean;
   /** Що востаннє змінила сцена-наслідок: потрібно, щоб показати, скільки справді втрачено. */
-  applied: { hp: number; clothing: number; spill: boolean } | null;
+  applied: { hp: number; clothing: number; penalty: Penalty | null; lostItem: string | null } | null;
+  /** Хто до кінця глави виконує свої завдання із заплющеними очима. */
+  blind: Role[];
+  /** Наскільки складнішою стане найближча перевірка. */
+  harder: number;
   /** Герой без сил: чекає кидка на повернення. */
   dead: { who: Role; roll: RollResult | null; episode: number | null } | null;
   /** Кидок d6 на фінальний ритуал. */
@@ -126,14 +132,30 @@ export interface AdvState {
 }
 
 export type SceneBody =
-  | { kind: 'guide'; title: string; text: string; index: number; total: number }
   | { kind: 'title'; title: string; text: string }
   | { kind: 'say'; speaker?: string; text: string }
   | { kind: 'choice'; text: string; chooser: Role; options: string[] }
-  | { kind: 'check'; text: string; label: string; difficulty: number; roller: Role; roll: RollResult | null }
+  | {
+      kind: 'check';
+      text: string;
+      label: string;
+      difficulty: number;
+      /** Скільки з цієї складності додано штрафом за втрачений одяг. */
+      harder: number;
+      roller: Role;
+      roll: RollResult | null;
+    }
   | { kind: 'dice'; text: string; roller: Role; roll: number | null; outcome: string | null }
-  | { kind: 'task'; who: TaskWho; title: string; text: string; timer?: number }
-  | { kind: 'effect'; text: string; who: Role; hp: number; clothing: number; spill: boolean }
+  | { kind: 'task'; who: TaskWho; title: string; text: string; timer?: number; blind: Role[] }
+  | {
+      kind: 'effect';
+      text: string;
+      who: Role;
+      hp: number;
+      clothing: number;
+      penalty: Penalty | null;
+      lostItem: string | null;
+    }
   | { kind: 'reward'; text: string; item: RewardItem }
   | { kind: 'dead'; who: Role; difficulty: number; roll: RollResult | null; episode: Episode | null }
   | { kind: 'ritual'; roll: number | null; episode: Episode | null }

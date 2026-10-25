@@ -28,11 +28,18 @@ function bodyFor(state: AdvState, script: StoryScript, viewer: Role): { body: Sc
   }
 
   if (run.stage === 'wish') {
-    return { body: { kind: 'wish', winner: run.winner!, successes: run.successes }, actor: run.winner! };
+    const submitted = (['male', 'female'] as const).filter((role) => run.wishes[role] !== undefined);
+    return {
+      body: { kind: 'wish', winner: run.winner!, successes: run.successes, submitted },
+      actor: run.winner === 'both' ? 'any' : run.winner!,
+    };
   }
 
   if (run.stage === 'finish') {
-    return { body: { kind: 'finish', text: f(script.epilogue), wish: run.wish }, actor: 'any' };
+    const wishes = (['male', 'female'] as const).flatMap((by) =>
+      run.wishes[by] ? [{ by, text: run.wishes[by]! }] : [],
+    );
+    return { body: { kind: 'finish', text: f(script.epilogue), wishes }, actor: 'any' };
   }
 
   if (run.dead) {

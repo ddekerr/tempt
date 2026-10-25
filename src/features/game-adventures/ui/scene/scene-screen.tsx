@@ -302,23 +302,30 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
       );
       break;
 
-    case 'wish':
+    case 'wish': {
+      const both = body.winner === 'both';
+      const canWrite = both ? !body.submitted.includes(role) : body.winner === role;
       content = (
         <Card>
           <Label>Бажання</Label>
-          <Title>Слово переможцю</Title>
+          <Title>{both ? 'Слово обом' : 'Слово переможцю'}</Title>
           <Prose>
-            У {name('male')} вдалих кидків: {body.successes.male}, у {name('female')}: {body.successes.female}. Бажання
-            загадує {name(body.winner)}.
+            У {name('male')} вдалих кидків: {body.successes.male}, у {name('female')}: {body.successes.female}.{' '}
+            {both ? 'Нічия, тож бажання загадуєте обоє.' : `Бажання загадує ${name(body.winner as Role)}.`}
           </Prose>
-          {scene.actor === role ? (
+          {canWrite ? (
             <WishForm onSubmit={(text) => send({ type: 'wish', text })} />
           ) : (
-            <Waiting>{name(body.winner)} загадує бажання…</Waiting>
+            <Waiting>
+              {both
+                ? `${name(role === 'male' ? 'female' : 'male')} ще загадує бажання…`
+                : `${name(body.winner as Role)} загадує бажання…`}
+            </Waiting>
           )}
         </Card>
       );
       break;
+    }
 
     case 'finish':
       content = (
@@ -326,12 +333,14 @@ export function SceneScreen({ view, scene, role, send }: SceneScreenProps) {
           <Label>Історію завершено</Label>
           <Title>{scene.storyTitle}</Title>
           <Prose>{body.text}</Prose>
-          {body.wish && (
-            <blockquote className="border-l-4 border-rose bg-ink p-4 italic">
-              {body.wish}
-              <footer className="mt-2 text-sm text-bone/60 not-italic">Бажання вже у скарбниці</footer>
+          {body.wishes.map((wish) => (
+            <blockquote key={wish.by} className="border-l-4 border-rose bg-ink p-4 italic">
+              {wish.text}
+              <footer className="mt-2 text-sm text-bone/60 not-italic">
+                Бажання від {name(wish.by)} вже у скарбниці
+              </footer>
             </blockquote>
-          )}
+          ))}
           <PrimaryButton onClick={() => send({ type: 'leave' })}>До історій</PrimaryButton>
         </Card>
       );

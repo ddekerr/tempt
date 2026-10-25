@@ -458,7 +458,7 @@ describe('фінал і бажання', () => {
         ritual: 3,
         winner: null,
         successes: { male: 1, female: 4 },
-        wish: null,
+        wishes: {},
       },
     };
     const next = applyAction(state, { type: 'advance' }, 'male', ctx);
@@ -471,6 +471,56 @@ describe('фінал і бажання', () => {
     expect(done.run?.stage).toBe('finish');
     expect(ctx.data.treasury.map((item) => [item.kind, item.description])).toEqual([['wish', 'Масаж']]);
     expect(ctx.data.progress).toEqual([{ storyId: 't', chapter: 1, done: true }]);
+  });
+
+  it('при нічиїй бажання загадують обоє, а історія завершується після обох', () => {
+    const script = tiny([]);
+    const ctx = makeCtx({ scripts: [script] });
+    let state = adventuresModule.init(players, ctx);
+    state = {
+      ...state,
+      script,
+      run: {
+        storyId: 't',
+        chapter: 1,
+        stage: 'ritual',
+        index: 0,
+        roll: null,
+        swapped: false,
+        applied: null,
+        blind: [],
+        harder: 0,
+        lastActor: null,
+        dead: null,
+        ritual: 1,
+        winner: null,
+        successes: { male: 2, female: 2 },
+        wishes: {},
+      },
+    };
+    const wish = applyAction(state, { type: 'advance' }, 'male', ctx);
+    if (isFail(wish)) throw new Error(wish.error);
+    expect(wish.run).toMatchObject({ stage: 'wish', winner: 'both' });
+
+    const first = applyAction(wish, { type: 'wish', text: 'Його' }, 'male', ctx);
+    if (isFail(first)) throw new Error(first.error);
+    expect(first.run?.stage).toBe('wish');
+    expect(ctx.data.progress).toEqual([]);
+    expect(applyAction(first, { type: 'wish', text: 'ще' }, 'male', ctx)).toHaveProperty('error');
+    expect(sceneFor(first, script, 'male').body).toMatchObject({ kind: 'wish', submitted: ['male'] });
+
+    const done = applyAction(first, { type: 'wish', text: 'Її' }, 'female', ctx);
+    if (isFail(done)) throw new Error(done.error);
+    expect(done.run?.stage).toBe('finish');
+    expect(ctx.data.treasury.map((item) => item.description)).toEqual(['Його', 'Її']);
+    expect(ctx.data.progress).toEqual([{ storyId: 't', chapter: 1, done: true }]);
+    expect(sceneFor(done, script, 'male').body).toMatchObject({
+      kind: 'finish',
+      wishes: [
+        { by: 'male', text: 'Його' },
+        { by: 'female', text: 'Її' },
+      ],
+    });
   });
 
   it('кожен бачить себе й партнера', () => {

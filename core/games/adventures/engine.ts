@@ -221,7 +221,7 @@ export function beginRun(state: AdvState, ctx: AdvCtx, storyId: string, fromStar
     ritual: null,
     winner: null,
     successes: { male: 0, female: 0 },
-    wish: null,
+    wishes: {},
   };
 
   let next: AdvState = { ...state, script };
@@ -268,7 +268,7 @@ function advance(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by
     if (run.ritual === null) return fail('Спершу киньте кубик.');
     if (by !== readerOf(script, run)) return fail('Ритуал читає той, хто кидав кубик.');
     const { male, female } = run.successes;
-    const winner: Role = male === female ? (ctx.random() < 0.5 ? 'male' : 'female') : male > female ? 'male' : 'female';
+    const winner: Run['winner'] = male === female ? 'both' : male > female ? 'male' : 'female';
     return withRun(state, { ...run, stage: 'wish', winner });
   }
 
@@ -376,8 +376,9 @@ function useItem(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, it
 }
 
 function makeWish(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, by: Role, text: string): Result {
-  if (run.stage !== 'wish') return fail('Бажання загадують наприкінці.');
-  if (by !== run.winner) return fail('Бажання загадує партнер.');
+  if (run.stage !== 'wish' || !run.winner) return fail('Бажання загадують наприкінці.');
+  if (run.winner !== 'both' && by !== run.winner) return fail('Бажання загадує партнер.');
+  if (run.wishes[by] !== undefined) return fail('Ти вже загадав(ла) бажання.');
 
   ctx.addTreasure({
     kind: 'wish',
@@ -386,9 +387,14 @@ function makeWish(state: AdvState, ctx: AdvCtx, script: StoryScript, run: Run, b
     description: text,
     effect: null,
   });
-  ctx.saveProgress({ storyId: run.storyId, chapter: script.chapters.length, done: true });
 
+  const wishes = { ...run.wishes, [by]: text };
+  const waiting =
+    run.winner === 'both' ? (['male', 'female'] as const).filter((role) => wishes[role] === undefined) : [];
+  if (waiting.length > 0) return withRun(sync(state, ctx), { ...run, wishes });
+
+  ctx.saveProgress({ storyId: run.storyId, chapter: script.chapters.length, done: true });
   let next = sync(state, ctx);
   for (const role of ['male', 'female'] as const) next = gainXp(next, ctx, role, XP_STORY);
-  return withRun(sync(next, ctx), { ...run, stage: 'finish', wish: text });
+  return withRun(sync(next, ctx), { ...run, stage: 'finish', wishes });
 }

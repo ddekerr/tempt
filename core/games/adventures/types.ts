@@ -105,9 +105,10 @@ export interface Run {
   dead: { who: Role; roll: RollResult | null; episode: number | null } | null;
   /** Кидок d6 на фінальний ритуал. */
   ritual: number | null;
-  winner: Role | null;
+  /** Хто загадує бажання. При нічиїй у кидках обоє. */
+  winner: Role | 'both' | null;
   successes: Record<Role, number>;
-  wish: string | null;
+  wishes: Partial<Record<Role, string>>;
 }
 
 export const AdvActionSchema = z.discriminatedUnion('type', [
@@ -179,8 +180,8 @@ export type SceneBody =
       episodeHidden: boolean;
     }
   | { kind: 'ritual'; roll: number | null; episode: Episode | null; episodeHidden: boolean; reader: Role | null }
-  | { kind: 'wish'; winner: Role; successes: Record<Role, number> }
-  | { kind: 'finish'; text: string; wish: string | null };
+  | { kind: 'wish'; winner: Role | 'both'; successes: Record<Role, number>; submitted: Role[] }
+  | { kind: 'finish'; text: string; wishes: { by: Role; text: string }[] };
 
 export interface SceneView {
   storyTitle: string;
